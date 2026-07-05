@@ -1,0 +1,17 @@
+{
+  "name": "climate-futures-protocol",
+  "version": "0.1.0",
+  "description": "Decentralized forward market for global temperature forecasting on Ethereum",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:local": "npx hardhat run scripts/deploy.js",
+    "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "hardhat": "^2.19.0"
+  }
+}
