@@ -3,17 +3,26 @@ const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("Climate Futures Protocol", function () {
-  let deployer, alice, bob, reporter1, reporter2, reporter3, reporter4, reporter5, reporter6;
+  let deployer, alice, bob, submitter1, submitter2, submitter3, submitter4, submitter5, submitter6;
   let clmt, dao, usdc, position, oracle, factory;
   let market2030, amm2030;
 
   const YEAR = 2030;
   const USDC_UNIT = 1_000_000n; // 6 decimals
   const POSITION_UNIT = ethers.parseEther("1"); // 18 decimals
-  const MIN_STAKE = ethers.parseEther("100000");
+
+  // Data source IDs (keccak256 of source name for determinism)
+  const SOURCE_IDS = {
+    NASA_GISS: ethers.id("NASA_GISS"),
+    NOAA: ethers.id("NOAA"),
+    HADCRUT5: ethers.id("HADCRUT5"),
+    BERKELEY: ethers.id("BERKELEY"),
+    JMA: ethers.id("JMA"),
+    ERA5: ethers.id("ERA5"),
+  };
 
   before(async function () {
-    [deployer, alice, bob, reporter1, reporter2, reporter3, reporter4, reporter5, reporter6] =
+    [deployer, alice, bob, submitter1, submitter2, submitter3, submitter4, submitter5, submitter6] =
       await ethers.getSigners();
   });
 
@@ -38,9 +47,9 @@ describe("Climate Futures Protocol", function () {
       const ClimatePosition = await ethers.getContractFactory("ClimatePosition");
       position = await ClimatePosition.deploy();
 
-      // Oracle
+      // Oracle (now takes USDC for bounties, not CLMT for staking)
       const TemperatureOracle = await ethers.getContractFactory("TemperatureOracle");
-      oracle = await TemperatureOracle.deploy(await clmt.getAddress(), deployer.address);
+      oracle = await TemperatureOracle.deploy(await usdc.getAddress(), deployer.address);
 
       // Factory
       const Factory = await ethers.getContractFactory("TemperatureMarketFactory");
@@ -104,7 +113,6 @@ describe("Climate Futures Protocol", function () {
       const shortBalance = await position.balanceOf(alice.address, shortId);
 
       // After 0.1% issuance fee, net = 999 USDC worth of positions
-      // 999 * 1e6 collateral => 999 * 1e18 position tokens (scaled up by 1e12)
       const expectedPositions = 999n * POSITION_UNIT;
       expect(longBalance).to.equal(expectedPositions);
       expect(shortBalance).to.equal(expectedPositions);
@@ -123,16 +131,51 @@ describe("Climate Futures Protocol", function () {
     });
   });
 
-  describe("Oracle", function () {
-    before(async function () {
-      // Set up reporters
-      const reporters = [reporter1, reporter2, reporter3, reporter4, reporter5, reporter6];
-      for (const r of reporters) {
-        await oracle.addReporter(r.address);
-        await clmt.transfer(r.address, MIN_STAKE);
-        await clmt.connect(r).approve(await oracle.getAddress(), MIN_STAKE);
-        await oracle.connect(r).stake(MIN_STAKE);
+  describe("Oracle — Data Sources and Submitters", function () {
+    it("should register data sources", async function () {
+      await oracle.addDataSource(SOURCE_IDS.NASA_GISS, "NASA GISS", "GISTEMP v4, 1850-1900 baseline");
+      await oracle.addDataSource(SOURCE_IDS.NOAA, "NOAA NCEI", "NOAAGlobalTemp v5");
+      await oracle.addDataSource(SOURCE_IDS.HADCRUT5, "HadCRUT5", "UK Met Office / CRU");
+      await oracle.addDataSource(SOURCE_IDS.BERKELEY, "Berkeley Earth", "BEST, 1850-1900 baseline");
+      await oracle.addDataSource(SOURCE_IDS.JMA, "JMA", "Japan Meteorological Agency");
+      await oracle.addDataSource(SOURCE_IDS.ERA5, "ERA5", "Copernicus/ECMWF reanalysis");
+
+      expect(await oracle.activeSourceCount()).to.equal(6);
+    });
+
+    it("should reject duplicate data sources", async function () {
+      await expect(
+        oracle.addDataSource(SOURCE_IDS.NASA_GISS, "Duplicate", "")
+      ).to.be.revertedWith("Source exists");
+    });
+
+    it("should authorise designated submitters", async function () {
+      const sourceKeys = Object.keys(SOURCE_IDS);
+      const submitterAddrs = [submitter1, submitter2, submitter3, submitter4, submitter5, submitter6];
+
+      for (let i = 0; i < submitterAddrs.length; i++) {
+        await oracle.authoriseSubmitter(submitterAddrs[i].address, SOURCE_IDS[sourceKeys[i]]);
       }
+
+      const info = await oracle.submitters(submitter1.address);
+      expect(info.isAuthorised).to.be.true;
+      expect(info.sourceId).to.equal(SOURCE_IDS.NASA_GISS);
+    });
+
+    it("should reject unauthorised submitters", async function () {
+      await expect(
+        oracle.connect(alice).submitReport(YEAR, 1450)
+      ).to.be.reverted; // either "Reporting not open" or "Not authorised"
+    });
+  });
+
+  describe("Oracle — Reporting and Settlement", function () {
+    before(async function () {
+      // Fund the oracle with USDC for bounties
+      const fundAmount = 100_000n * USDC_UNIT;
+      await usdc.mint(deployer.address, fundAmount);
+      await usdc.approve(await oracle.getAddress(), fundAmount);
+      await oracle.fundOracle(fundAmount);
     });
 
     it("should open reporting window", async function () {
@@ -141,27 +184,26 @@ describe("Climate Futures Protocol", function () {
       expect(settlement.status).to.equal(1); // ReportingOpen
     });
 
-    it("should accept reports from staked reporters", async function () {
+    it("should accept reports from authorised submitters", async function () {
       // Simulated anomaly values in millidegrees (e.g., 1450 = +1.45°C)
       const values = [1450, 1460, 1440, 1470, 1445, 1455];
-      const reporters = [reporter1, reporter2, reporter3, reporter4, reporter5, reporter6];
+      const submitterAddrs = [submitter1, submitter2, submitter3, submitter4, submitter5, submitter6];
 
-      for (let i = 0; i < reporters.length; i++) {
-        await oracle.connect(reporters[i]).submitReport(YEAR, values[i]);
+      for (let i = 0; i < submitterAddrs.length; i++) {
+        await oracle.connect(submitterAddrs[i]).submitReport(YEAR, values[i]);
       }
 
       const settlement = await oracle.settlements(YEAR);
-      expect(settlement.reportCount).to.equal(6);
+      expect(settlement.sourceReportCount).to.equal(6);
     });
 
-    it("should reject duplicate reports", async function () {
+    it("should reject duplicate reports for the same source", async function () {
       await expect(
-        oracle.connect(reporter1).submitReport(YEAR, 1450)
-      ).to.be.revertedWith("Already reported");
+        oracle.connect(submitter1).submitReport(YEAR, 1450)
+      ).to.be.revertedWith("Source already reported");
     });
 
     it("should aggregate to median after window closes", async function () {
-      // Fast forward past the reporting window
       await time.increase(61 * 24 * 60 * 60); // 61 days
 
       await oracle.aggregate(YEAR);
@@ -182,6 +224,67 @@ describe("Climate Futures Protocol", function () {
       const value = await oracle.getSettlementValue(YEAR);
       expect(value).to.equal(1452);
     });
+
+    it("should distribute bounties to consensus-aligned submitters", async function () {
+      // All six submitted within ±0.1°C of median (1452), so all should be paid
+      // Max deviation: |1470 - 1452| = 18 millidegrees = 0.018°C < 0.1°C threshold
+
+      const balanceBefore = await usdc.balanceOf(submitter1.address);
+      await oracle.distributeBounties(YEAR);
+      const balanceAfter = await usdc.balanceOf(submitter1.address);
+
+      // submitter1 was the first to submit, so gets bounty + early bonus
+      const expectedPayout = 5_000n * USDC_UNIT + 1_000n * USDC_UNIT; // 6,000 USDC
+      expect(balanceAfter - balanceBefore).to.equal(expectedPayout);
+
+      // Other submitters get base bounty only
+      const balance2 = await usdc.balanceOf(submitter2.address);
+      expect(balance2).to.equal(5_000n * USDC_UNIT);
+    });
+  });
+
+  describe("Oracle — Dispute Resolution", function () {
+    let disputeYear;
+
+    before(async function () {
+      disputeYear = 2040;
+
+      // Register sources for this year's test (reuse existing sources)
+      await oracle.openReporting(disputeYear);
+
+      const values = [2100, 2110, 2090, 2120, 2095, 2105];
+      const submitterAddrs = [submitter1, submitter2, submitter3, submitter4, submitter5, submitter6];
+      for (let i = 0; i < submitterAddrs.length; i++) {
+        await oracle.connect(submitterAddrs[i]).submitReport(disputeYear, values[i]);
+      }
+
+      await time.increase(61 * 24 * 60 * 60);
+      await oracle.aggregate(disputeYear);
+    });
+
+    it("should allow raising a dispute with a bond", async function () {
+      const bond = await oracle.disputeBond();
+      await usdc.mint(alice.address, bond);
+      await usdc.connect(alice).approve(await oracle.getAddress(), bond);
+
+      await oracle.connect(alice).raiseDispute(disputeYear, 2150);
+
+      const settlement = await oracle.settlements(disputeYear);
+      expect(settlement.status).to.equal(3); // Disputed
+    });
+
+    it("should resolve dispute (upheld) and return bond + reward", async function () {
+      const balanceBefore = await usdc.balanceOf(alice.address);
+      await oracle.resolveDispute(disputeYear, true);
+      const balanceAfter = await usdc.balanceOf(alice.address);
+
+      const bond = await oracle.disputeBond();
+      const reward = await oracle.disputeReward();
+      expect(balanceAfter - balanceBefore).to.equal(bond + reward);
+
+      const value = await oracle.getSettlementValue(disputeYear);
+      expect(value).to.equal(2150); // Overridden to disputed value
+    });
   });
 
   describe("Settlement", function () {
@@ -192,7 +295,6 @@ describe("Climate Futures Protocol", function () {
       const longPayout = await market2030.longPayoutPerUnit();
       // T = 1452 millidegrees, T_MIN = 500, T_RANGE = 3500
       // payout = (1452 - 500) * 1e6 / 3500 = 952 * 1e6 / 3500 = 272000
-      // (integer division)
       expect(longPayout).to.equal(272000n);
     });
 
@@ -203,14 +305,12 @@ describe("Climate Futures Protocol", function () {
       const longBalance = await position.balanceOf(alice.address, longId);
       const shortBalance = await position.balanceOf(alice.address, shortId);
 
-      // Approve the market to burn positions
       await position.connect(alice).setApprovalForAll(await market2030.getAddress(), true);
 
       const usdcBefore = await usdc.balanceOf(alice.address);
       await market2030.connect(alice).claim(longBalance, shortBalance);
       const usdcAfter = await usdc.balanceOf(alice.address);
 
-      // Should receive something back (exact amount depends on payout ratios and fees)
       expect(usdcAfter).to.be.gt(usdcBefore);
     });
   });
@@ -219,7 +319,6 @@ describe("Climate Futures Protocol", function () {
     it("should create a proposal", async function () {
       await clmt.delegate(deployer.address);
 
-      // Propose changing the trading fee
       const setFeeData = market2030.interface.encodeFunctionData("setFees", [20, 20, 100]);
 
       await dao.propose(
@@ -265,41 +364,40 @@ describe("Climate Futures Protocol", function () {
   });
 
   describe("AMM", function () {
-    let market2040, amm2040;
+    let market2050, amm2050;
 
     before(async function () {
-      // Create a fresh market for AMM tests
-      await factory.createMarket(2040);
-      const [marketAddr, ammAddr] = await factory.getMarket(2040);
-      market2040 = await ethers.getContractAt("TemperatureMarket", marketAddr);
-      amm2040 = await ethers.getContractAt("ClimateAMM", ammAddr);
+      // Create a fresh market for AMM tests (2040 used by dispute test)
+      await factory.createMarket(2050);
+      const [marketAddr, ammAddr] = await factory.getMarket(2050);
+      market2050 = await ethers.getContractAt("TemperatureMarket", marketAddr);
+      amm2050 = await ethers.getContractAt("ClimateAMM", ammAddr);
 
       // Mint positions and seed the AMM
       const seedAmount = 50000n * USDC_UNIT;
       await usdc.mint(deployer.address, seedAmount);
-      await usdc.approve(await market2040.getAddress(), seedAmount);
-      await market2040.mint(seedAmount);
+      await usdc.approve(await market2050.getAddress(), seedAmount);
+      await market2050.mint(seedAmount);
 
       // Transfer position tokens to AMM for inventory
-      const longId = await position.longTokenId(2040);
-      const shortId = await position.shortTokenId(2040);
+      const longId = await position.longTokenId(2050);
+      const shortId = await position.shortTokenId(2050);
       const posAmount = await position.balanceOf(deployer.address, longId);
 
-      await position.safeTransferFrom(deployer.address, await amm2040.getAddress(), longId, posAmount, "0x");
-      await position.safeTransferFrom(deployer.address, await amm2040.getAddress(), shortId, posAmount, "0x");
+      await position.safeTransferFrom(deployer.address, await amm2050.getAddress(), longId, posAmount, "0x");
+      await position.safeTransferFrom(deployer.address, await amm2050.getAddress(), shortId, posAmount, "0x");
 
       // Fund AMM with collateral for payouts
       const fundAmount = 10000n * USDC_UNIT;
       await usdc.mint(deployer.address, fundAmount);
-      await usdc.approve(await amm2040.getAddress(), fundAmount);
-      await amm2040.fund(fundAmount);
+      await usdc.approve(await amm2050.getAddress(), fundAmount);
+      await amm2050.fund(fundAmount);
     });
 
     it("should start with equal prices", async function () {
-      const longP = await amm2040.longPrice();
-      const shortP = await amm2040.shortPrice();
+      const longP = await amm2050.longPrice();
+      const shortP = await amm2050.shortPrice();
 
-      // At q_long = q_short = 0, both prices should be 0.5
       const halfUnit = POSITION_UNIT / 2n;
       const tolerance = POSITION_UNIT / 100n; // 1% tolerance
 
@@ -309,47 +407,44 @@ describe("Climate Futures Protocol", function () {
 
     it("should provide buy quotes", async function () {
       const buyAmount = 100n * POSITION_UNIT;
-      const cost = await amm2040.quoteBuy(true, buyAmount);
+      const cost = await amm2050.quoteBuy(true, buyAmount);
       expect(cost).to.be.gt(0);
     });
 
     it("should execute a buy trade", async function () {
       const buyAmount = 100n * POSITION_UNIT;
-      const cost = await amm2040.quoteBuy(true, buyAmount);
+      const cost = await amm2050.quoteBuy(true, buyAmount);
 
       await usdc.mint(bob.address, cost);
-      await usdc.connect(bob).approve(await amm2040.getAddress(), cost);
-      await amm2040.connect(bob).buy(true, buyAmount);
+      await usdc.connect(bob).approve(await amm2050.getAddress(), cost);
+      await amm2050.connect(bob).buy(true, buyAmount);
 
-      const longId = await position.longTokenId(2040);
+      const longId = await position.longTokenId(2050);
       const balance = await position.balanceOf(bob.address, longId);
       expect(balance).to.equal(buyAmount);
     });
 
     it("should shift prices after a trade", async function () {
-      const longP = await amm2040.longPrice();
-      const shortP = await amm2040.shortPrice();
+      const longP = await amm2050.longPrice();
+      const shortP = await amm2050.shortPrice();
 
-      // After buying LONG, long price should be > 0.5
       expect(longP).to.be.gt(POSITION_UNIT / 2n);
-      // Short price should be < 0.5
       expect(shortP).to.be.lt(POSITION_UNIT / 2n);
     });
 
     it("should report implied anomaly", async function () {
-      const anomaly = await amm2040.impliedAnomaly();
+      const anomaly = await amm2050.impliedAnomaly();
       // Should be > midpoint (2250) since we bought LONG
       expect(anomaly).to.be.gt(2250);
     });
 
     it("should execute a sell trade", async function () {
       const sellAmount = 50n * POSITION_UNIT;
-      const longId = await position.longTokenId(2040);
 
-      await position.connect(bob).setApprovalForAll(await amm2040.getAddress(), true);
+      await position.connect(bob).setApprovalForAll(await amm2050.getAddress(), true);
 
       const balanceBefore = await usdc.balanceOf(bob.address);
-      await amm2040.connect(bob).sell(true, sellAmount);
+      await amm2050.connect(bob).sell(true, sellAmount);
       const balanceAfter = await usdc.balanceOf(bob.address);
 
       expect(balanceAfter).to.be.gt(balanceBefore);

@@ -187,34 +187,55 @@ Initial whitelisted data sources and their reporting methodologies:
 
 All values are normalized to the 1850-1900 pre-industrial baseline before submission.
 
-### 4.3 Reporting Mechanism
+### 4.3 Two-Tier Reporting Architecture
+
+The oracle uses a two-tier model that recognizes the institutional reality of scientific data providers:
+
+**Tier 1 — Data Sources**: The authoritative institutions (NASA, NOAA, etc.) whose published data determines settlement. These organizations publish temperature data as part of their scientific mission. They are registered on-chain by the DAO but are *not* required to operate Ethereum wallets, hold tokens, or manage cryptographic keys.
+
+**Tier 2 — Designated Submitters**: On-chain addresses authorised by the DAO to submit values on behalf of a specific data source. A submitter may be:
+- The institution itself (if it chooses to operate a wallet)
+- A DAO-approved intermediary (e.g., a university lab, a climate data nonprofit, or a protocol contributor)
+- Multiple independent submitters per source for redundancy
+
+This separation is critical because government and academic institutions are structured to produce and publish data, not to participate in DeFi protocols. The protocol meets them where they are — paying for the data they already produce — rather than asking them to adopt unfamiliar financial infrastructure.
+
+### 4.4 Reporting Mechanism
 
 1. **Reporting window**: Opens on January 15 of the year after the settlement year and closes March 15 (60-day window).
-2. **Submission**: Each whitelisted reporter address submits a single temperature anomaly value (in millidegrees Celsius for precision, e.g., 2450 = +2.450°C).
-3. **Quorum**: Minimum 5 of 6 sources must report. If fewer than 5 report within the window, the window extends by 30 days (repeatable up to 3 times).
+2. **Submission**: Each authorised submitter reads the published anomaly value from their assigned data source and submits it on-chain (in millidegrees Celsius for precision, e.g., 2450 = +2.450°C). Only one submission per data source is accepted (first valid submitter wins).
+3. **Quorum**: Minimum 5 of 6 sources must be reported. If fewer than 5 are submitted within the window, the window extends by 30 days (repeatable up to 3 times).
 4. **Aggregation**: The contract computes the **median** of all submitted values. The median is robust to a single outlier, requiring corruption of at least 3 of 6 sources to manipulate.
 5. **Finality**: Once computed, the median value enters a 30-day dispute period.
 
-### 4.4 Reporter Staking and Slashing
+### 4.4 Bounty-Based Incentives (Report-to-Earn)
 
-Each reporter address must maintain a minimum stake of 100,000 CLMT tokens. After settlement:
+Rather than requiring data providers to stake tokens (which government and academic institutions will not do), the protocol **pays submitters** for timely, accurate reporting. Incentives flow *to* reporters, not from them.
 
-- If a reporter's submitted value is within ±0.1°C of the final median: no action.
-- If a reporter's value deviates by more than ±0.1°C from the final median: 10% of their stake is slashed and sent to the DAO treasury.
-- If a reporter fails to submit during the reporting window: 5% of their stake is slashed.
+**Oracle Fund**: A dedicated USDC pool that pays bounties. Funded by:
+1. **Protocol fee revenue**: A portion of trading, issuance, and settlement fees is routed to the Oracle Fund by DAO governance.
+2. **CLMT oracle allocation**: The 5M CLMT oracle incentives allocation (5% of supply) can be sold by the DAO to fund bounties in USDC.
+3. **External grants**: The DAO can accept grants from climate foundations, philanthropies, or government programs interested in supporting transparent climate data infrastructure.
 
-This mechanism incentivizes timely, accurate reporting while recognizing that legitimate scientific datasets may have small methodological differences.
+**Bounty Structure**:
+- **Submission bounty**: 5,000 USDC per valid, consensus-aligned submission (adjustable by DAO).
+- **Early bonus**: 1,000 USDC additional for the first valid submission in a reporting window (incentivizes timeliness).
+- **Consensus requirement**: Only submissions within ±0.1°C of the final median are eligible for bounty. Outliers receive nothing but are not penalised — they simply aren't paid. This is sufficient incentive alignment because submitters are reading publicly-verifiable scientific data, not making subjective judgments.
+
+**Why this works**: The data these institutions publish is already public and verifiable. A submitter who fabricates a value gains nothing (they'll be outside the consensus band and won't get paid) and risks losing their DAO-approved submitter status. The cost of honest reporting is near zero (read a published number, submit a transaction), while the reward is meaningful — especially for graduate students, postdocs, or small research groups who can serve as designated submitters.
+
+**Estimated annual oracle cost**: At 8 settlement events with 6 sources each, the maximum annual bounty outflow is approximately 8 × 6 × 6,000 = 288,000 USDC. In practice, only one settlement event occurs per decade, so steady-state costs are ~36,000 USDC per settlement event — easily sustainable from protocol fee revenue.
 
 ### 4.5 Dispute Resolution
 
 During the 30-day dispute period after oracle aggregation:
 
-1. Any CLMT holder can raise a dispute by staking 10,000 CLMT.
+1. Any participant can raise a dispute by depositing a 10,000 USDC bond.
 2. The DAO votes on the dispute (simple majority of participating votes, minimum 10% quorum).
-3. If the dispute is upheld, the DAO can submit a corrected value and the disputer's stake is returned plus a 5,000 CLMT reward from the treasury.
-4. If the dispute is rejected, the disputer's stake is slashed to the treasury.
+3. If the dispute is upheld, the DAO can submit a corrected value and the disputer's bond is returned plus a 5,000 USDC reward from the Oracle Fund.
+4. If the dispute is rejected, the disputer's bond is forfeited to the DAO treasury.
 
-This provides a human backstop against oracle failure while making frivolous disputes costly.
+The dispute bond is denominated in USDC (not CLMT) so that anyone with a financial stake in the market — not just governance token holders — can challenge a suspicious oracle result. This widens the set of watchdogs and makes the system more robust.
 
 ---
 
@@ -226,9 +247,9 @@ This provides a human backstop against oracle failure while making frivolous dis
 
 **Token Utility:**
 1. **Governance voting**: 1 CLMT = 1 vote on DAO proposals.
-2. **Oracle staking**: Reporters must stake CLMT to participate.
-3. **Dispute bonds**: Raising oracle disputes requires CLMT stake.
-4. **Fee sharing**: CLMT stakers receive a share of protocol fee revenue (distributed in USDC).
+2. **Oracle governance**: DAO votes to approve data sources, authorise submitters, and set bounty levels.
+3. **Fee sharing**: CLMT stakers receive a share of protocol fee revenue (distributed in USDC).
+4. **Treasury governance**: CLMT holders govern the DAO treasury, including Oracle Fund allocations and grant acceptance.
 
 **Initial Distribution (Total Supply: 100,000,000 CLMT):**
 
@@ -238,7 +259,7 @@ This provides a human backstop against oracle failure while making frivolous dis
 | Protocol Development | 20% | 20,000,000 | 4-year linear vesting |
 | Community / Liquidity Mining | 25% | 25,000,000 | Distributed over 10 years |
 | Initial Contributors | 10% | 10,000,000 | 2-year linear vesting, 6-month cliff |
-| Oracle Reporter Incentives | 5% | 5,000,000 | Released per settlement event |
+| Oracle Fund Seeding | 5% | 5,000,000 | Sold by DAO to fund USDC bounties |
 
 **No additional minting**: The total supply is fixed at 100,000,000. The DAO cannot inflate the supply.
 
@@ -246,7 +267,7 @@ This provides a human backstop against oracle failure while making frivolous dis
 
 The DAO governs:
 
-1. **Oracle management**: Add/remove whitelisted data sources and reporter addresses.
+1. **Oracle management**: Add/remove data sources, authorise/revoke submitters, set bounty levels, fund the Oracle Fund.
 2. **Market parameters**: Adjust fee rates, AMM liquidity parameter, anomaly range bounds.
 3. **Treasury management**: Allocate treasury funds for liquidity subsidies, grants, development.
 4. **Contract upgrades**: Approve upgrades to protocol contracts via proxy pattern.
@@ -330,9 +351,9 @@ For the proof of concept:
 | Item | Cost (USDC) |
 |------|-------------|
 | AMM liquidity subsidy (8 markets × ~6,931) | ~55,450 |
-| Oracle reporter incentives | 50,000 |
+| Oracle Fund (initial bounty pool) | 100,000 |
 | Initial development and audit | Variable |
-| **Total minimum** | **~105,450** |
+| **Total minimum** | **~155,450** |
 
 ---
 
@@ -378,7 +399,7 @@ For the proof of concept:
 ClimateFuturesProtocol/
 ├── CLMTToken.sol              — ERC-20 governance token
 ├── ClimateDAO.sol             — Governance (proposals, voting, timelock)
-├── TemperatureOracle.sol      — Oracle aggregation and dispute resolution
+├── TemperatureOracle.sol      — Oracle with bounty-based data source reporting
 ├── TemperatureMarketFactory.sol — Deploys new markets
 ├── TemperatureMarket.sol      — Core market logic (mint, redeem, settle)
 ├── ClimatePosition.sol        — ERC-1155 position tokens
@@ -398,7 +419,7 @@ All stateful contracts use the UUPS (Universal Upgradeable Proxy Standard, EIP-1
 1. **Full collateralization**: For every LONG-SHORT pair in existence, exactly 1 USDC is held in the market contract.
 2. **Payout conservation**: At settlement, total LONG payouts + total SHORT payouts = total collateral.
 3. **Price bounds**: LMSR prices always satisfy `0 < Price_long < 1` and `Price_long + Price_short = 1`.
-4. **Oracle integrity**: Settlement value is always the median of at least 5 independent submissions.
+4. **Oracle integrity**: Settlement value is always the median of at least 5 independent data source submissions, reported by DAO-authorised submitters and verified by consensus.
 
 ---
 
