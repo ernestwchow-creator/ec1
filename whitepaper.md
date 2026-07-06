@@ -6,7 +6,7 @@
 
 ## Abstract
 
-Climate Futures Protocol (CFP) is a decentralized prediction market built on Ethereum that creates forward contracts settling on observed global mean temperature anomaly at decade boundaries from 2030 through 2100. By enabling participants to take financially-backed positions on future climate outcomes, the protocol surfaces distributed information about climate trajectories and creates real price signals for climate risk. Settlement is determined by the median of at least five globally recognized scientific authorities. The protocol is governed by a decentralized autonomous organization (DAO) funded by trading, issuance, and settlement fees, ensuring long-term sustainability across a multi-decade operating horizon.
+Climate Futures Protocol (CFP) is a decentralized prediction market built on Ethereum that creates forward contracts settling on observed global mean temperature anomaly at decade boundaries from 2030 through 2100. By enabling participants to take financially-backed positions on future climate outcomes, the protocol surfaces distributed information about climate trajectories and creates real price signals for climate risk. Settlement is determined by the median of at least five globally recognized scientific authorities. The protocol is governed by a tripartite governance structure: vote-escrowed token holders (veCLMT), an independent Science Advisory Board with oracle veto power, and the Climate Futures Foundation, a 501(c)(3) nonprofit that provides institutional continuity, grant reception, and regulatory interface. All three bodies must agree on protocol changes, making capture by any single interest effectively impossible. Protocol fees fund veCLMT staker yield, the Foundation's operations, and the Oracle Fund that pays data providers.
 
 ---
 
@@ -218,11 +218,11 @@ Rather than requiring data providers to stake tokens (which government and acade
 3. **External grants**: The DAO can accept grants from climate foundations, philanthropies, or government programs interested in supporting transparent climate data infrastructure.
 
 **Bounty Structure**:
-- **Submission bounty**: 5,000 USDC per valid, consensus-aligned submission (adjustable by DAO).
+- **Submission bounty**: 5,000 USDC per valid, consensus-aligned submission (adjustable by tripartite governance).
 - **Early bonus**: 1,000 USDC additional for the first valid submission in a reporting window (incentivizes timeliness).
 - **Consensus requirement**: Only submissions within ±0.1°C of the final median are eligible for bounty. Outliers receive nothing but are not penalised — they simply aren't paid. This is sufficient incentive alignment because submitters are reading publicly-verifiable scientific data, not making subjective judgments.
 
-**Why this works**: The data these institutions publish is already public and verifiable. A submitter who fabricates a value gains nothing (they'll be outside the consensus band and won't get paid) and risks losing their DAO-approved submitter status. The cost of honest reporting is near zero (read a published number, submit a transaction), while the reward is meaningful — especially for graduate students, postdocs, or small research groups who can serve as designated submitters.
+**Why this works**: The data these institutions publish is already public and verifiable. A submitter who fabricates a value gains nothing (they'll be outside the consensus band and won't get paid) and risks losing their submitter authorization. The cost of honest reporting is near zero (read a published number, submit a transaction), while the reward is meaningful — especially for graduate students, postdocs, or small research groups who can serve as designated submitters.
 
 **Estimated annual oracle cost**: At 8 settlement events with 6 sources each, the maximum annual bounty outflow is approximately 8 × 6 × 6,000 = 288,000 USDC. In practice, only one settlement event occurs per decade, so steady-state costs are ~36,000 USDC per settlement event — easily sustainable from protocol fee revenue.
 
@@ -231,73 +231,170 @@ Rather than requiring data providers to stake tokens (which government and acade
 During the 30-day dispute period after oracle aggregation:
 
 1. Any participant can raise a dispute by depositing a 10,000 USDC bond.
-2. The DAO votes on the dispute (simple majority of participating votes, minimum 10% quorum).
-3. If the dispute is upheld, the DAO can submit a corrected value and the disputer's bond is returned plus a 5,000 USDC reward from the Oracle Fund.
-4. If the dispute is rejected, the disputer's bond is forfeited to the DAO treasury.
+2. Resolution requires tripartite agreement: veCLMT holders vote, the Science Advisory Board reviews the scientific merits, and the Foundation Board confirms procedural integrity.
+3. If the dispute is upheld, a corrected value is submitted and the disputer's bond is returned plus a 5,000 USDC reward from the Oracle Fund.
+4. If the dispute is rejected, the disputer's bond is forfeited to the Oracle Fund.
 
 The dispute bond is denominated in USDC (not CLMT) so that anyone with a financial stake in the market — not just governance token holders — can challenge a suspicious oracle result. This widens the set of watchdogs and makes the system more robust.
 
 ---
 
-## 5. Governance: The Climate DAO
+## 5. Governance: Tripartite Architecture
 
-### 5.1 CLMT Token
+### 5.1 Design Philosophy
 
-**CLMT** is the governance and utility token of the Climate Futures Protocol.
+The protocol's 74-year operating horizon demands governance that is resistant to capture, adaptable over decades, and credible to both financial participants and the scientific community. We draw from the most durable governance models available:
+
+- **From Bitcoin/Ethereum**: Minimize what is governable. The less that can be changed, the less there is to capture. Default to immutability; govern only what must adapt.
+- **From constitutional democracies**: Separate powers across independent bodies with different incentives and constituencies. Require agreement across bodies for changes.
+- **From established nonprofits**: Use legal structures with centuries-long track records (the 501(c)(3) form is older than any blockchain) for institutional continuity.
+
+The result is a **tripartite governance** structure: three independent bodies, each with veto power over protocol changes. No single body — and no single type of actor — can unilaterally alter the protocol.
+
+### 5.2 The Three Governing Bodies
+
+#### Body 1: veCLMT Token Holders (On-Chain)
+
+CLMT is the protocol's governance and yield token. Holders lock CLMT for a chosen duration (1 week to 4 years) to receive **veCLMT** (vote-escrowed CLMT) — a non-transferable balance representing voting power and fee-earning rights.
+
+**Vote-escrow mechanics (modeled on Curve's veCRV):**
+- Voting power = locked CLMT × (remaining lock time / max lock time)
+- A token locked for 4 years has full weight; locked for 1 year has 25% weight
+- Voting power decays linearly as the lock approaches expiry, requiring re-locking to maintain influence
+- veCLMT is non-transferable — voting power cannot be bought on the open market
 
 **Token Utility:**
-1. **Governance voting**: 1 CLMT = 1 vote on DAO proposals.
-2. **Oracle governance**: DAO votes to approve data sources, authorise submitters, and set bounty levels.
-3. **Fee sharing**: CLMT stakers receive a share of protocol fee revenue (distributed in USDC).
-4. **Treasury governance**: CLMT holders govern the DAO treasury, including Oracle Fund allocations and grant acceptance.
+1. **Governance voting**: veCLMT holders vote on all protocol proposals
+2. **SAB confirmation**: veCLMT holders confirm or reject Science Advisory Board nominees
+3. **Fee yield**: veCLMT holders receive USDC distributions from protocol fee revenue
+4. **Delegation**: veCLMT holders can delegate voting power to trusted community members
 
 **Initial Distribution (Total Supply: 100,000,000 CLMT):**
 
 | Allocation | Percentage | Tokens | Vesting |
 |-----------|-----------|--------|---------|
-| DAO Treasury | 40% | 40,000,000 | Governed by DAO proposals |
+| Community / Liquidity Mining | 35% | 35,000,000 | Distributed over 10 years |
 | Protocol Development | 20% | 20,000,000 | 4-year linear vesting |
-| Community / Liquidity Mining | 25% | 25,000,000 | Distributed over 10 years |
-| Initial Contributors | 10% | 10,000,000 | 2-year linear vesting, 6-month cliff |
-| Oracle Fund Seeding | 5% | 5,000,000 | Sold by DAO to fund USDC bounties |
+| Initial Contributors | 15% | 15,000,000 | 2-year linear vesting, 6-month cliff |
+| Foundation Endowment | 20% | 20,000,000 | Held by Foundation, governed by Foundation Board |
+| Oracle Fund Seeding | 10% | 10,000,000 | Sold by Foundation to fund USDC bounties |
 
-**No additional minting**: The total supply is fixed at 100,000,000. The DAO cannot inflate the supply.
+**No additional minting**: The total supply is fixed at 100,000,000. No entity can inflate the supply.
 
-### 5.2 Governance Scope
+#### Body 2: Science Advisory Board (SAB)
 
-The DAO governs:
+The SAB is a panel of 7-9 active climate scientists from recognized research institutions. Its sole on-chain power is **veto over oracle-related changes**: data source additions/removals, submitter authorization, dispute resolution outcomes, and oracle parameter changes.
 
-1. **Oracle management**: Add/remove data sources, authorise/revoke submitters, set bounty levels, fund the Oracle Fund.
-2. **Market parameters**: Adjust fee rates, AMM liquidity parameter, anomaly range bounds.
-3. **Treasury management**: Allocate treasury funds for liquidity subsidies, grants, development.
-4. **Contract upgrades**: Approve upgrades to protocol contracts via proxy pattern.
-5. **Emergency actions**: Pause markets, override oracle values in case of clear error.
-6. **New market creation**: Deploy markets for additional settlement years if desired.
+**Composition and appointment:**
+- Foundation Board nominates candidates (active researchers with relevant expertise)
+- veCLMT holders confirm or reject each nominee (simple majority)
+- 3-year terms, staggered so no more than 3 seats turn over in any year
+- Members receive a modest annual stipend plus expense reimbursement from the Foundation
+- Veto requires 5-of-7 (or 5-of-9) SAB members
 
-### 5.3 Proposal Lifecycle
+**Scope — what the SAB can and cannot do:**
 
-1. **Proposal creation**: Requires holding at least 100,000 CLMT (0.1% of supply).
-2. **Voting period**: 7 days for standard proposals, 3 days for emergency proposals.
-3. **Quorum**: 10% of circulating supply must participate for standard proposals; 5% for emergency proposals.
-4. **Approval threshold**: Simple majority (>50%) for standard; supermajority (>66%) for emergency and contract upgrades.
-5. **Timelock**: 48 hours for standard proposals; 24 hours for emergency proposals. During the timelock, the DAO multisig can veto clearly malicious proposals.
+| SAB CAN veto | SAB CANNOT do |
+|-------------|--------------|
+| Adding or removing data sources | Propose changes to any parameter |
+| Authorizing or revoking submitters | Change fee rates or market parameters |
+| Oracle dispute resolution outcomes | Access user funds or protocol collateral |
+| Changes to oracle methodology | Manage the Foundation or its budget |
+| Changes to bounty parameters | Override veCLMT votes on non-oracle matters |
+
+The SAB is a **check**, not a governing body. It ensures that the scientific integrity of the oracle cannot be compromised by financial interests, even if those interests control a majority of veCLMT.
+
+#### Body 3: Climate Futures Foundation
+
+The **Climate Futures Foundation** is a US 501(c)(3) nonprofit corporation that provides the institutional layer the on-chain protocol cannot.
+
+**Foundation Board of Directors (5-7 members):**
+- Unpaid volunteers, per 501(c)(3) norms (expense reimbursement only)
+- Mix of expertise: climate policy, nonprofit governance, technology, legal, finance
+- Standard nonprofit governance: fiduciary duties, conflict of interest policies, D&O insurance
+- Self-perpetuating board with veCLMT holder confirmation of new directors
+
+**Executive Director:**
+- Compensated professional hired by the Foundation Board
+- Compensation funded partly from the Foundation's share of protocol fee revenue, aligning the ED's incentives with protocol health
+- Responsible for day-to-day Foundation operations, data source relationships, grant applications, regulatory engagement, and SAB coordination
+
+**Foundation responsibilities:**
+1. Houses and administers the Science Advisory Board
+2. Receives external grants (climate foundations, government programs, philanthropies) and channels them to the Oracle Fund
+3. Maintains relationships with data source institutions (NASA, NOAA, etc.)
+4. Provides legal and regulatory interface for the protocol
+5. Funds ongoing protocol development through grants to contributors
+6. Education and public communication about climate futures markets
+7. On-chain veto over protocol changes (the third leg of tripartite governance)
+
+**Foundation does NOT control:**
+- User funds (held in smart contracts)
+- Fee rates or market parameters (immutable or tripartite-governed)
+- Token supply or distribution schedule (fixed at deployment)
+
+**Foundation funding — hardcoded protocol fee split:**
+
+| Recipient | Share of Protocol Fees | Purpose |
+|-----------|----------------------|---------|
+| veCLMT stakers | 60% | Yield for long-term token holders |
+| Foundation | 25% | Operations, ED compensation, SAB stipends, development grants |
+| Oracle Fund | 15% | Data provider bounties |
+
+This split is hardcoded in the smart contracts at deployment. No single body can redirect fee flows — changing the split requires tripartite agreement.
+
+### 5.3 Tripartite Governance Process
+
+Any change to the protocol requires approval from **all three bodies**:
+
+```
+Proposal → veCLMT Vote → SAB Review → Foundation Board Approval → Execution
+           (on-chain)    (on-chain     (on-chain multisig
+                          multisig)     signature)
+```
+
+**Proposal lifecycle:**
+
+1. **Proposal creation**: Any veCLMT holder with ≥100,000 veCLMT (0.1% of max supply) can submit a proposal on-chain.
+2. **veCLMT voting period**: 14 days. Quorum: 10% of outstanding veCLMT. Approval: simple majority.
+3. **SAB review period** (oracle-related proposals only): 14 days. SAB members signal approval or veto via multisig. 5-of-7 (or 5-of-9) must approve. For non-oracle proposals, this step is skipped.
+4. **Foundation Board review**: 14 days. Foundation Board signals approval or veto via multisig. Simple majority of directors.
+5. **Timelock**: 7 days after all approvals. During this window, any body can withdraw approval if new information emerges.
 6. **Execution**: Automatic on-chain execution after timelock expires.
+
+**Why this works for capture resistance:**
+
+| Attack vector | Why it fails |
+|--------------|-------------|
+| Buy majority of CLMT | Still need SAB + Foundation approval. Time-weighting (ve-lock) means freshly-bought tokens have minimal voting power. |
+| Compromise the SAB | Still need veCLMT + Foundation approval. SAB has staggered terms, so you'd need to wait years to replace a majority. |
+| Compromise the Foundation | Still need veCLMT + SAB approval. Foundation Board is self-perpetuating with veCLMT confirmation, so hostile board replacement triggers token holder veto. |
+| Compromise two of three | Extremely difficult: requires simultaneous capture of capital markets (veCLMT), scientific institutions (SAB), and a nonprofit board (Foundation) — three entirely different social structures. |
+
+**Emergency actions:**
+
+For genuine emergencies (critical bug, oracle failure, exploit in progress), the protocol includes a pause mechanism:
+- Any 2-of-3 governing bodies can jointly trigger a pause (no proposal process needed)
+- Pause halts trading and settlement but does not affect existing positions or collateral
+- Unpausing requires full tripartite approval through the standard process
+- This prevents emergencies from being used as pretexts for governance capture
 
 ### 5.4 Long-Term Sustainability
 
-The 74-year operating horizon requires special consideration:
+**Revenue Model (hardcoded at deployment):**
+- Trading fees: 0.3% per AMM trade
+- Issuance fees: 0.1% on minting position pairs
+- Settlement fees: 0.5% on payouts at settlement
+- Fee split: 60% veCLMT stakers / 25% Foundation / 15% Oracle Fund
 
-**Revenue Model:**
-- Trading fees (0.3% per AMM trade) provide ongoing revenue proportional to market activity.
-- Issuance fees (0.1% on minting position pairs) generate revenue from new market participation.
-- Settlement fees (0.5% on payouts) generate revenue at each settlement event.
-- Treasury investment: The DAO may invest treasury assets in low-risk DeFi yield strategies to grow the treasury between settlement events.
+**Why no general-purpose treasury:**
+Following the Bitcoin/Ethereum principle of minimal governance, there is no discretionary treasury that could be raided. All fee revenue is deterministically split by the smart contracts. The Foundation's 25% share serves the operational functions that a treasury would, but it flows to a legally accountable nonprofit with fiduciary duties — not to an on-chain pool controlled by token votes alone.
 
-**Continuity Mechanisms:**
-- **Proxy upgradability**: All core contracts use the UUPS proxy pattern, allowing the DAO to upgrade implementation logic while preserving state.
-- **Modular oracle**: Data sources can be added or removed as scientific institutions evolve over decades.
-- **Progressive decentralization**: Initial multisig oversight transitions to full DAO control as the protocol matures and governance participation grows.
-- **Emergency multisig**: A 4-of-7 multisig (elected by DAO vote, rotated annually) can pause contracts in emergencies. It cannot withdraw funds or change parameters — only pause.
+**Continuity mechanisms:**
+- **Foundation as institutional anchor**: The 501(c)(3) form has a multi-century track record. The Foundation provides continuity even if on-chain governance participation fluctuates.
+- **Modular oracle**: Data sources can be added or removed (with tripartite approval) as scientific institutions evolve.
+- **Fork-friendly design**: All contracts are open source with well-documented interfaces. If governance fails, the community can redeploy a competing instance — the ultimate exit right, as in Bitcoin/Ethereum.
+- **Voter participation incentives**: Small USDC rewards for veCLMT holders who participate in governance votes, funded from the Foundation's share, to prevent governance dormancy between settlement events.
 
 ---
 
@@ -363,31 +460,37 @@ For the proof of concept:
 
 **Risk**: Data sources may cease to exist, change methodology, or be compromised over the 74-year horizon.
 
-**Mitigation**: DAO can add/remove oracle sources. Median aggregation is robust to single-source failure. Minimum 5-source quorum ensures no single point of failure.
+**Mitigation**: Tripartite governance can add/remove oracle sources. The SAB veto ensures changes are scientifically sound. Median aggregation is robust to single-source failure. Minimum 5-source quorum ensures no single point of failure. The Foundation maintains ongoing relationships with data source institutions.
 
 ### 7.2 Smart Contract Risk
 
 **Risk**: Bugs in smart contract code could result in loss of funds.
 
-**Mitigation**: Proxy upgradability allows bug fixes. Proof-of-concept phase enables thorough testing before significant capital deployment. Formal verification of core payout logic.
+**Mitigation**: Contract upgrades require tripartite agreement. Proof-of-concept phase enables thorough testing before significant capital deployment. Formal verification of core payout logic. Emergency pause available with 2-of-3 governing body agreement.
 
 ### 7.3 Regulatory Risk
 
 **Risk**: Prediction markets may face regulatory challenges in various jurisdictions.
 
-**Mitigation**: Decentralized, permissionless architecture reduces single points of regulatory failure. The protocol surfaces information of genuine public interest (climate forecasting), which strengthens the case for regulatory accommodation.
+**Mitigation**: The 501(c)(3) Foundation provides a legitimate legal interface for regulators. The protocol surfaces information of genuine public interest (climate forecasting), which strengthens the case for regulatory accommodation. The Foundation's charitable mission (climate data transparency) aligns with regulatory goals.
 
 ### 7.4 Liquidity Risk
 
 **Risk**: Long-dated markets (2080-2100) may have insufficient liquidity to produce meaningful prices.
 
-**Mitigation**: LMSR provides a price at all times regardless of liquidity. DAO treasury can subsidize liquidity for less-active markets. Liquidity mining incentives can attract early participants.
+**Mitigation**: LMSR provides a price at all times regardless of liquidity. Foundation can fund liquidity subsidies from grants. Community liquidity mining incentives attract early participants.
 
-### 7.5 Ethereum Platform Risk
+### 7.5 Governance Capture Risk
+
+**Risk**: A well-resourced adversary (industry, sovereign actor, large speculator) attempts to control the protocol to manipulate oracle outcomes or extract value.
+
+**Mitigation**: Tripartite governance requires simultaneous capture of three independent structures — financial (veCLMT), scientific (SAB), and institutional (Foundation Board). Vote-escrowing prevents rapid accumulation of voting power. No discretionary treasury to raid. Fork-friendly design provides ultimate exit if governance fails.
+
+### 7.6 Ethereum Platform Risk
 
 **Risk**: Ethereum may undergo fundamental changes (consensus mechanism, state model, fee structure) over the protocol's lifetime.
 
-**Mitigation**: UUPS proxy pattern allows adaptation. Core contract logic is relatively simple (arithmetic payout functions, median computation) and unlikely to be broken by platform changes. The DAO can migrate to a new platform in extremis.
+**Mitigation**: Contract upgrades possible with tripartite approval. Core contract logic is relatively simple (arithmetic payout functions, median computation) and unlikely to be broken by platform changes. Fork-friendly design enables migration to a new platform if necessary.
 
 ---
 
@@ -397,8 +500,10 @@ For the proof of concept:
 
 ```
 ClimateFuturesProtocol/
-├── CLMTToken.sol              — ERC-20 governance token
-├── ClimateDAO.sol             — Governance (proposals, voting, timelock)
+├── CLMTToken.sol              — ERC-20 governance token (fixed supply)
+├── VotingEscrow.sol           — veCLMT lock and voting power (modeled on Curve)
+├── TripartiteGovernor.sol     — Tripartite proposal/voting/approval/timelock
+├── FeeDistributor.sol         — Hardcoded fee split (60/25/15)
 ├── TemperatureOracle.sol      — Oracle with bounty-based data source reporting
 ├── TemperatureMarketFactory.sol — Deploys new markets
 ├── TemperatureMarket.sol      — Core market logic (mint, redeem, settle)
@@ -406,48 +511,65 @@ ClimateFuturesProtocol/
 └── ClimateAMM.sol             — LMSR automated market maker
 ```
 
-### 8.2 Upgrade Strategy
+### 8.2 On-Chain Representation of Governing Bodies
+
+- **veCLMT holders**: Represented on-chain by the VotingEscrow contract. Voting power is computed from lock amount and remaining duration.
+- **Science Advisory Board**: Represented on-chain by a Gnosis Safe multisig (5-of-7 or 5-of-9). The SAB multisig address is registered in the TripartiteGovernor. Changing the SAB multisig address requires tripartite approval.
+- **Foundation Board**: Represented on-chain by a separate Gnosis Safe multisig (majority of directors). The Foundation multisig address is registered in the TripartiteGovernor. Changing this address also requires tripartite approval.
+
+### 8.3 Upgrade Strategy
 
 All stateful contracts use the UUPS (Universal Upgradeable Proxy Standard, EIP-1822) pattern:
 
 - **Proxy**: Stores state, delegates calls to implementation.
-- **Implementation**: Contains logic, can be replaced by DAO vote.
-- **Upgrade authorization**: Only the DAO timelock can authorize upgrades.
+- **Implementation**: Contains logic, can be replaced by tripartite vote.
+- **Upgrade authorization**: Requires approval from all three governing bodies via the TripartiteGovernor.
 
-### 8.3 Key Invariants
+### 8.4 Key Invariants
 
 1. **Full collateralization**: For every LONG-SHORT pair in existence, exactly 1 USDC is held in the market contract.
 2. **Payout conservation**: At settlement, total LONG payouts + total SHORT payouts = total collateral.
 3. **Price bounds**: LMSR prices always satisfy `0 < Price_long < 1` and `Price_long + Price_short = 1`.
-4. **Oracle integrity**: Settlement value is always the median of at least 5 independent data source submissions, reported by DAO-authorised submitters and verified by consensus.
+4. **Oracle integrity**: Settlement value is always the median of at least 5 independent data source submissions, and oracle changes require SAB approval.
+5. **Fee determinism**: The 60/25/15 fee split is hardcoded and cannot be changed without tripartite agreement.
+6. **Tripartite requirement**: No protocol change executes without approval from all three governing bodies.
 
 ---
 
 ## 9. Roadmap
 
 ### Phase 1: Proof of Concept (Current)
-- Deploy contracts on Ethereum testnet (Sepolia)
+- Deploy smart contracts on Ethereum testnet (Sepolia)
 - Create markets for 2030 and 2040 settlement dates
 - Basic web interface for minting, trading, and viewing prices
-- Simulated oracle submissions
+- Simulated oracle submissions and tripartite governance flows
 
-### Phase 2: Testnet Validation
+### Phase 2: Foundation Formation
+- Incorporate Climate Futures Foundation as US 501(c)(3)
+- Recruit initial Foundation Board of Directors
+- Appoint Executive Director
+- Recruit inaugural Science Advisory Board members
+- Apply for climate foundation grants (Oracle Fund seeding)
+
+### Phase 3: Testnet Validation
 - Full suite of 8 markets (2030-2100)
+- Deploy veCLMT and tripartite governance contracts
 - Community testing and bug bounty program
 - Formal verification of payout and oracle logic
-- Governance simulation
+- End-to-end governance simulation with all three bodies
 
-### Phase 3: Mainnet Launch
+### Phase 4: Mainnet Launch
 - Security audit by reputable firm
 - Mainnet deployment with conservative liquidity parameters
 - CLMT token distribution event
-- Oracle reporter onboarding with real institutional commitments
+- Oracle submitter onboarding with real institutional commitments
+- Foundation begins data source relationship management
 
-### Phase 4: Ecosystem Growth
+### Phase 5: Ecosystem Growth
 - Integration with DeFi protocols (lending, insurance)
 - Structured products built on CFP positions
-- Cross-chain bridges for broader accessibility
 - Academic partnerships for price analysis and research
+- Foundation seeks additional grant funding for Oracle Fund sustainability
 
 ---
 
@@ -455,9 +577,11 @@ All stateful contracts use the UUPS (Universal Upgradeable Proxy Standard, EIP-1
 
 Climate Futures Protocol transforms climate forecasting from a purely academic exercise into a financially-incentivized information discovery mechanism. By creating transferable, tradeable positions on future temperature outcomes settled by consensus of scientific authorities, the protocol produces a continuously-updated market signal about the trajectory of global warming.
 
-The linear payout structure ensures that market prices directly encode temperature expectations. The LMSR automated market maker guarantees liquidity at all times. The multi-source oracle with staking and dispute resolution ensures settlement integrity. And the DAO governance structure provides the adaptability necessary for a protocol designed to operate for nearly a century.
+The linear payout structure ensures that market prices directly encode temperature expectations. The LMSR automated market maker guarantees liquidity at all times. The bounty-based oracle pays government and academic data providers for the data they already produce, without requiring them to participate in DeFi infrastructure. And the tripartite governance structure — veCLMT token holders, an independent Science Advisory Board, and the Climate Futures Foundation — provides the capture resistance and institutional continuity necessary for a protocol designed to operate for nearly a century.
 
-The result is a new kind of climate instrument: not a derivative of emissions credits or weather events, but a direct forward contract on the planet's temperature trajectory — the most fundamental climate metric there is.
+The protocol draws its governance philosophy from the most durable systems available: Bitcoin's minimalism (govern only what must change), Ethereum's social-layer legitimacy (process over capital), and the nonprofit foundation form (centuries of institutional track record). The result is a system where no single interest — financial, political, or ideological — can corrupt the climate signal the market produces.
+
+This is a new kind of climate instrument: not a derivative of emissions credits or weather events, but a direct forward contract on the planet's temperature trajectory — the most fundamental climate metric there is.
 
 ---
 

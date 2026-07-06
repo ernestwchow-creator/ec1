@@ -4,58 +4,86 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
-  const treasury = deployer.address;
-  const development = deployer.address;
-  const community = deployer.address;
-  const contributors = deployer.address;
-  const oracleIncentives = deployer.address;
+  const foundationAddress = deployer.address;
+  const oracleFundAddress = deployer.address;
 
   // 1. Deploy CLMT Token
   const CLMTToken = await hre.ethers.getContractFactory("CLMTToken");
-  const clmt = await CLMTToken.deploy(treasury, development, community, contributors, oracleIncentives);
+  const clmt = await CLMTToken.deploy(
+    deployer.address, // treasury
+    deployer.address, // development
+    deployer.address, // community
+    deployer.address, // contributors
+    deployer.address  // oracle incentives
+  );
   await clmt.waitForDeployment();
   console.log("CLMTToken:", await clmt.getAddress());
 
-  // 2. Deploy Climate DAO
-  const ClimateDAO = await hre.ethers.getContractFactory("ClimateDAO");
-  const dao = await ClimateDAO.deploy(await clmt.getAddress());
-  await dao.waitForDeployment();
-  console.log("ClimateDAO:", await dao.getAddress());
+  // 2. Deploy VotingEscrow (veCLMT)
+  const VotingEscrow = await hre.ethers.getContractFactory("VotingEscrow");
+  const votingEscrow = await VotingEscrow.deploy(await clmt.getAddress());
+  await votingEscrow.waitForDeployment();
+  console.log("VotingEscrow:", await votingEscrow.getAddress());
 
-  // 3. Deploy a mock USDC for testing (6 decimals)
+  // 3. Deploy mock USDC (6 decimals)
   const MockUSDC = await hre.ethers.getContractFactory("MockERC20");
   const usdc = await MockUSDC.deploy("USD Coin", "USDC", 6);
   await usdc.waitForDeployment();
   console.log("MockUSDC:", await usdc.getAddress());
 
-  // 4. Deploy ClimatePosition (ERC-1155)
+  // 4. Deploy FeeDistributor (hardcoded 60/25/15 split)
+  const FeeDistributor = await hre.ethers.getContractFactory("FeeDistributor");
+  const feeDistributor = await FeeDistributor.deploy(
+    await usdc.getAddress(),
+    await votingEscrow.getAddress(),
+    foundationAddress,
+    oracleFundAddress
+  );
+  await feeDistributor.waitForDeployment();
+  console.log("FeeDistributor:", await feeDistributor.getAddress());
+
+  // 5. Deploy TripartiteGovernor
+  //    In production, SAB and Foundation would be Gnosis Safe multisig addresses.
+  //    For testing, deployer acts as both.
+  const sabMultisig = deployer.address;
+  const foundationMultisig = deployer.address;
+  const TripartiteGovernor = await hre.ethers.getContractFactory("TripartiteGovernor");
+  const governor = await TripartiteGovernor.deploy(
+    await votingEscrow.getAddress(),
+    sabMultisig,
+    foundationMultisig
+  );
+  await governor.waitForDeployment();
+  console.log("TripartiteGovernor:", await governor.getAddress());
+
+  // 6. Deploy ClimatePosition (ERC-1155)
   const ClimatePosition = await hre.ethers.getContractFactory("ClimatePosition");
   const position = await ClimatePosition.deploy();
   await position.waitForDeployment();
   console.log("ClimatePosition:", await position.getAddress());
 
-  // 5. Deploy Temperature Oracle (takes USDC for bounty payments)
+  // 7. Deploy Temperature Oracle (report-to-earn model)
   const TemperatureOracle = await hre.ethers.getContractFactory("TemperatureOracle");
-  const oracle = await TemperatureOracle.deploy(await usdc.getAddress(), treasury);
+  const oracle = await TemperatureOracle.deploy(await usdc.getAddress(), oracleFundAddress);
   await oracle.waitForDeployment();
   console.log("TemperatureOracle:", await oracle.getAddress());
 
-  // 6. Deploy Market Factory
+  // 8. Deploy Market Factory
   const Factory = await hre.ethers.getContractFactory("TemperatureMarketFactory");
   const factory = await Factory.deploy(
     await usdc.getAddress(),
     await position.getAddress(),
     await oracle.getAddress(),
-    treasury
+    await feeDistributor.getAddress()
   );
   await factory.waitForDeployment();
   console.log("TemperatureMarketFactory:", await factory.getAddress());
 
-  // 7. Grant factory the admin role on ClimatePosition
+  // 9. Grant factory the admin role on ClimatePosition
   await position.grantRole(await position.DEFAULT_ADMIN_ROLE(), await factory.getAddress());
   console.log("Factory granted admin role on ClimatePosition");
 
-  // 8. Register data sources
+  // 10. Register data sources
   const sources = [
     { id: hre.ethers.id("NASA_GISS"), name: "NASA GISS", method: "GISTEMP v4, 1850-1900 baseline" },
     { id: hre.ethers.id("NOAA"), name: "NOAA NCEI", method: "NOAAGlobalTemp v5" },
@@ -69,14 +97,14 @@ async function main() {
     console.log(`Data source registered: ${src.name}`);
   }
 
-  // 9. Fund the oracle with initial bounty pool
+  // 11. Fund the oracle with initial bounty pool
   const oracleFund = 100_000n * 1_000_000n; // 100,000 USDC
   await usdc.mint(deployer.address, oracleFund);
   await usdc.approve(await oracle.getAddress(), oracleFund);
   await oracle.fundOracle(oracleFund);
   console.log("Oracle funded with 100,000 USDC for bounties");
 
-  // 10. Create markets for 2030 and 2040
+  // 12. Create markets for 2030 and 2040
   const SETTLEMENT_YEARS = [2030, 2040];
   for (const year of SETTLEMENT_YEARS) {
     const tx = await factory.createMarket(year);
@@ -87,13 +115,24 @@ async function main() {
 
   console.log("\nDeployment complete!");
   console.log("---");
+  console.log("Contracts:");
+  console.log(`  CLMTToken:           ${await clmt.getAddress()}`);
+  console.log(`  VotingEscrow:        ${await votingEscrow.getAddress()}`);
+  console.log(`  FeeDistributor:      ${await feeDistributor.getAddress()}`);
+  console.log(`  TripartiteGovernor:  ${await governor.getAddress()}`);
+  console.log(`  MockUSDC:            ${await usdc.getAddress()}`);
+  console.log(`  ClimatePosition:     ${await position.getAddress()}`);
+  console.log(`  TemperatureOracle:   ${await oracle.getAddress()}`);
+  console.log(`  MarketFactory:       ${await factory.getAddress()}`);
+  console.log("---");
   console.log("Next steps:");
-  console.log("1. Authorise submitter addresses: oracle.authoriseSubmitter(addr, sourceId)");
-  console.log("2. Mint test USDC: MockUSDC.mint(yourAddress, amount)");
-  console.log("3. Approve market to spend USDC");
-  console.log("4. Mint positions: TemperatureMarket.mint(amount)");
+  console.log("1. Lock CLMT in VotingEscrow for governance power");
+  console.log("2. Authorise submitter addresses: oracle.authoriseSubmitter(addr, sourceId)");
+  console.log("3. Mint test USDC: MockUSDC.mint(yourAddress, amount)");
+  console.log("4. Approve market to spend USDC, then mint positions");
   console.log("5. Fund AMM with initial liquidity");
   console.log("6. Trade on the AMM: ClimateAMM.buy(isLong, amount)");
+  console.log("7. Deploy Gnosis Safe multisigs for SAB and Foundation Board");
 }
 
 main().catch((error) => {
