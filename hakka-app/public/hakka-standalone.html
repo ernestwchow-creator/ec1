@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>學客話 Learn Hakka</title>
+<style>
+@font-face {
+  font-family: 'SystemSerif';
+  src: local('Georgia'), local('Times New Roman'), local('serif');
+}
+
+:root {
+  --bg: #F5F0E8;
+  --surface: #FDFBF7;
+  --text: #2A2520;
+  --text-secondary: #7A746C;
+  --accent: #2B4C3F;
+  --accent-warm: #C4785B;
+  --accent-light: #E8EDE9;
+  --border: #DDD7CD;
+  --jade: #5B8C6F;
+  --jade-bg: #EDF5F0;
+  --error: #B5493A;
+  --error-bg: #FAEDEB;
+  --radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1C1A17;
+    --surface: #262320;
+    --text: #E8E2D8;
+    --text-secondary: #9A948C;
+    --accent: #7DB892;
+    --accent-warm: #D49272;
+    --accent-light: #2A3230;
+    --border: #3A3632;
+    --jade: #7DB892;
+    --jade-bg: #1E2E24;
+    --error: #D4766A;
+    --error-bg: #2E2220;
+    --radius: 6px;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1C1A17;
+  --surface: #262320;
+  --text: #E8E2D8;
+  --text-secondary: #9A948C;
+  --accent: #7DB892;
+  --accent-warm: #D49272;
+  --accent-light: #2A3230;
+  --border: #3A3632;
+  --jade: #7DB892;
+  --jade-bg: #1E2E24;
+  --error: #D4766A;
+  --error-bg: #2E2220;
+}
+:root[data-theme="light"] {
+  --bg: #F5F0E8;
+  --surface: #FDFBF7;
+  --text: #2A2520;
+  --text-secondary: #7A746C;
+  --accent: #2B4C3F;
+  --accent-warm: #C4785B;
+  --accent-light: #E8EDE9;
+  --border: #DDD7CD;
+  --jade: #5B8C6F;
+  --jade-bg: #EDF5F0;
+  --error: #B5493A;
+  --error-bg: #FAEDEB;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.app-header {
+  text-align: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.app-title {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1.75rem;
+  font-weight: 400;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  margin-bottom: 1rem;
+}
+
+.app-title span {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.settings {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.setting-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.setting-group label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.setting-group select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tone-toggle {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.tone-toggle:first-of-type { border-radius: var(--radius) 0 0 var(--radius); }
+.tone-toggle:last-of-type { border-radius: 0 var(--radius) var(--radius) 0; border-left: none; }
+.tone-toggle.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.tone-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mode-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 0.65rem 0.5rem;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  text-align: center;
+}
+
+.mode-btn:hover { color: var(--text); }
+.mode-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.mode-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.mode-label { display: block; font-size: 0.72rem; margin-top: 0.15rem; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+  transition: border-color 0.15s;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.card:hover { border-color: var(--accent); }
+.card-text { flex: 1; }
+
+.characters {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  margin-bottom: 0.2rem;
+  line-height: 1.4;
+}
+
+.romanization {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88rem;
+  color: var(--accent);
+  margin-bottom: 0.15rem;
+  letter-spacing: 0.01em;
+}
+
+.english {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.play-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  margin-top: 0.2rem;
+  position: relative;
+}
+.play-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.play-btn:active { transform: scale(0.92); }
+.play-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.play-btn.playing {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+.play-btn.loading {
+  border-color: var(--accent);
+  opacity: 0.7;
+  cursor: wait;
+}
+.play-btn.error {
+  border-color: var(--error);
+  color: var(--error);
+}
+.play-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+.play-inline {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  vertical-align: middle;
+  margin-left: 0.4rem;
+}
+.play-inline:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.play-inline:active { transform: scale(0.92); }
+.play-inline.playing {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+.play-inline.loading {
+  border-color: var(--accent);
+  opacity: 0.7;
+  cursor: wait;
+}
+.play-inline.error {
+  border-color: var(--error);
+  color: var(--error);
+}
+.play-inline svg { width: 12px; height: 12px; fill: currentColor; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.play-btn.loading svg, .play-inline.loading svg {
+  animation: spin 0.8s linear infinite;
+}
+
+.tts-status {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tts-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tts-status .dot.ok { background: var(--jade); }
+.tts-status .dot.err { background: var(--error); }
+.tts-status .dot.loading { background: var(--accent-warm); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.4; } }
+
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.topic-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 0.8rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.topic-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.topic-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.topic-chinese {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1.2rem;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.topic-english {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.section-title {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1.1rem;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.section-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: inherit;
+  margin-bottom: 1rem;
+  transition: border-color 0.15s;
+}
+.back-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+.dialogue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+.dialogue-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dialogue-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.dialogue-card .d-title {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1rem;
+}
+.dialogue-card .d-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+.progress-bar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.2s;
+}
+.progress-dot.done { background: var(--accent); }
+.progress-dot.current {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.dialogue-line {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  padding: 0.7rem;
+  border-radius: var(--radius);
+}
+.dialogue-line.speaker-A { background: var(--accent-light); }
+.dialogue-line.speaker-B {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.speaker-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--accent);
+  min-width: 1.3rem;
+  letter-spacing: 0.03em;
+}
+.line-content { flex: 1; }
+
+.scenario-prompt {
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+.scenario-prompt .characters { font-size: 1.5rem; }
+
+.choices { display: flex; flex-direction: column; gap: 0.5rem; }
+.choice-btn {
+  padding: 0.85rem 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: var(--text);
+}
+.choice-btn:hover:not(.chosen) { border-color: var(--accent); }
+.choice-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choice-btn.correct { border-color: var(--jade); background: var(--jade-bg); }
+.choice-btn.incorrect { border-color: var(--error); background: var(--error-bg); }
+.choice-btn .choice-chars {
+  font-family: SystemSerif, Georgia, 'Times New Roman', serif;
+  font-size: 1.1rem;
+}
+.choice-btn .choice-eng { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem; }
+.choice-btn .choice-rom {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.82rem;
+  color: var(--jade);
+  margin-top: 0.2rem;
+}
+
+.score {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.freeform-input {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-family: inherit;
+  margin-bottom: 0.75rem;
+}
+.freeform-input:focus { outline: none; border-color: var(--accent); }
+
+.btn {
+  padding: 0.5rem 1.2rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.88; }
+.btn:focus-visible { outline: 2px solid var(--accent-warm); outline-offset: 2px; }
+
+.feedback {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.feedback-msg { font-weight: 600; font-size: 0.88rem; }
+.feedback-msg.ok { color: var(--jade); }
+.feedback-msg.wrong { color: var(--error); }
+
+.footer {
+  text-align: center;
+  padding: 1.25rem 0 0;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; transform: none !important; animation: none !important; }
+}
+</style>
+
+<div class="app">
+  <header class="app-header">
+    <h1 class="app-title">學客話<span>Learn Hakka</span></h1>
+    <div class="settings">
+      <div class="setting-group">
+        <label>方言</label>
+        <select id="dialect-select"></select>
+      </div>
+      <div class="setting-group">
+        <label>聲調</label>
+        <button class="tone-toggle active" data-tone="numeric">sa1</button>
+        <button class="tone-toggle" data-tone="diacritic">sā</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="mode-nav">
+    <button class="mode-btn active" data-mode="browse">📖<span class="mode-label">Browse</span></button>
+    <button class="mode-btn" data-mode="dialogue">💬<span class="mode-label">Dialogue</span></button>
+    <button class="mode-btn" data-mode="scenario">🎯<span class="mode-label">Scenarios</span></button>
+    <button class="mode-btn" data-mode="freeform">✍️<span class="mode-label">Free Form</span></button>
+  </nav>
+
+  <main id="main"></main>
+
+  <footer class="footer">
+    Audio powered by gohakka.org TTS — open the file locally for audio playback
+  </footer>
+</div>
+
+<script>
+const PLAY_SVG = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+const LOADING_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" opacity=".3"/><path d="M20 12h2A10 10 0 0 0 12 2v2a8 8 0 0 1 8 8z"/></svg>';
+
+const DIALECTS = {
+  sixian: { name: '四縣', english: 'Sixian', ttsCode: 'xii' },
+  hailu: { name: '海陸', english: 'Hailu', ttsCode: 'hoi' },
+  dapu: { name: '大埔', english: 'Dapu', ttsCode: 'tai' },
+  raoping: { name: '饒平', english: 'Raoping', ttsCode: 'pin' },
+  zhaoan: { name: '詔安', english: "Zhao'an", ttsCode: 'onn' },
+};
+
+const TOPICS = {
+  greetings: { name: '問候', english: 'Greetings' },
+  numbers: { name: '數字', english: 'Numbers' },
+  family: { name: '家人', english: 'Family' },
+  food: { name: '食物', english: 'Food' },
+  daily: { name: '日常', english: 'Daily Phrases' },
+};
+
+const PHRASES = [
+  { id:'g01', topic:'greetings', characters:'你好', english:'Hello', dialects:{ sixian:{pfs:'ngi2 ho3',tones:'ngì hó'}, hailu:{pfs:'ngi5 ho3',tones:'ngì hó'}, dapu:{pfs:'ngi2 ho3',tones:'ngì hó'}, raoping:{pfs:'ngi2 ho3',tones:'ngì hó'}, zhaoan:{pfs:'ngi2 ho3',tones:'ngì hó'} }},
+  { id:'g02', topic:'greetings', characters:'你好無？', english:'How are you?', dialects:{ sixian:{pfs:'ngi2 ho3 mo2?',tones:'ngì hó mò?'}, hailu:{pfs:'ngi5 ho3 mo2?',tones:'ngì hó mò?'} }},
+  { id:'g03', topic:'greetings', characters:'㧡好', english:"I'm fine / Very good", dialects:{ sixian:{pfs:'gai5 ho3',tones:'gāi hó'}, hailu:{pfs:'gai1 ho3',tones:'gāi hó'} }},
+  { id:'g04', topic:'greetings', characters:'多謝', english:'Thank you', dialects:{ sixian:{pfs:'do1 qia5',tones:'dō qiā'}, hailu:{pfs:'do1 qia5',tones:'dō qiā'}, dapu:{pfs:'do1 qia5',tones:'dō qiā'}, raoping:{pfs:'do1 qia5',tones:'dō qiā'}, zhaoan:{pfs:'do1 qia5',tones:'dō qiā'} }},
+  { id:'g05', topic:'greetings', characters:'毋使客氣', english:"You're welcome", dialects:{ sixian:{pfs:'m2 sii3 hag4 hi5',tones:'m̀ sìi hag hī'}, hailu:{pfs:'m2 sii3 hag4 hi5',tones:'m̀ sìi hag hī'} }},
+  { id:'g06', topic:'greetings', characters:'對毋住', english:'Excuse me / Sorry', dialects:{ sixian:{pfs:'dui5 m2 cu5',tones:'duī m̀ cū'}, hailu:{pfs:'dui5 m2 cu5',tones:'duī m̀ cū'} }},
+  { id:'g07', topic:'greetings', characters:'再見', english:'Goodbye', dialects:{ sixian:{pfs:'zai5 gien5',tones:'zāi giēn'}, hailu:{pfs:'zai5 gien5',tones:'zāi giēn'} }},
+  { id:'g08', topic:'greetings', characters:'請問', english:'May I ask...', dialects:{ sixian:{pfs:'qiang3 mun5',tones:'qiáng mūn'}, hailu:{pfs:'qiang3 mun5',tones:'qiáng mūn'} }},
+  { id:'g09', topic:'greetings', characters:'食飽未？', english:'Have you eaten? (common greeting)', dialects:{ sixian:{pfs:'siid8 bau3 mui5?',tones:'siid bàu mūi?'}, hailu:{pfs:'siid8 bau3 mui5?',tones:'siid bàu mūi?'} }},
+  { id:'g10', topic:'greetings', characters:'食飽了', english:"I've eaten already", dialects:{ sixian:{pfs:'siid8 bau3 le1',tones:'siid bàu lē'}, hailu:{pfs:'siid8 bau3 le1',tones:'siid bàu lē'} }},
+  { id:'n01', topic:'numbers', characters:'一', english:'One (1)', dialects:{ sixian:{pfs:'yid4',tones:'yid'}, hailu:{pfs:'yid4',tones:'yid'} }},
+  { id:'n02', topic:'numbers', characters:'二', english:'Two (2)', dialects:{ sixian:{pfs:'ngi5',tones:'ngī'}, hailu:{pfs:'ngi5',tones:'ngī'} }},
+  { id:'n03', topic:'numbers', characters:'三', english:'Three (3)', dialects:{ sixian:{pfs:'sam1',tones:'sām'}, hailu:{pfs:'sam1',tones:'sām'} }},
+  { id:'n04', topic:'numbers', characters:'四', english:'Four (4)', dialects:{ sixian:{pfs:'si5',tones:'sī'}, hailu:{pfs:'si5',tones:'sī'} }},
+  { id:'n05', topic:'numbers', characters:'五', english:'Five (5)', dialects:{ sixian:{pfs:'ng3',tones:'ng̀'}, hailu:{pfs:'ng3',tones:'ng̀'} }},
+  { id:'n06', topic:'numbers', characters:'六', english:'Six (6)', dialects:{ sixian:{pfs:'liug4',tones:'liug'}, hailu:{pfs:'liug4',tones:'liug'} }},
+  { id:'n07', topic:'numbers', characters:'七', english:'Seven (7)', dialects:{ sixian:{pfs:'qid4',tones:'qid'}, hailu:{pfs:'qid4',tones:'qid'} }},
+  { id:'n08', topic:'numbers', characters:'八', english:'Eight (8)', dialects:{ sixian:{pfs:'bad4',tones:'bad'}, hailu:{pfs:'bad4',tones:'bad'} }},
+  { id:'n09', topic:'numbers', characters:'九', english:'Nine (9)', dialects:{ sixian:{pfs:'giu3',tones:'giù'}, hailu:{pfs:'giu3',tones:'giù'} }},
+  { id:'n10', topic:'numbers', characters:'十', english:'Ten (10)', dialects:{ sixian:{pfs:'siib8',tones:'siib'}, hailu:{pfs:'siib8',tones:'siib'} }},
+  { id:'f01', topic:'family', characters:'阿爸', english:'Father', dialects:{ sixian:{pfs:'a1 ba1',tones:'ā bā'}, hailu:{pfs:'a1 ba1',tones:'ā bā'} }},
+  { id:'f02', topic:'family', characters:'阿姆', english:'Mother', dialects:{ sixian:{pfs:'a1 me1',tones:'ā mē'}, hailu:{pfs:'a1 me1',tones:'ā mē'} }},
+  { id:'f03', topic:'family', characters:'阿公', english:'Grandfather (paternal)', dialects:{ sixian:{pfs:'a1 gung1',tones:'ā gūng'}, hailu:{pfs:'a1 gung1',tones:'ā gūng'} }},
+  { id:'f04', topic:'family', characters:'阿婆', english:'Grandmother (paternal)', dialects:{ sixian:{pfs:'a1 po2',tones:'ā pò'}, hailu:{pfs:'a1 po2',tones:'ā pò'} }},
+  { id:'f05', topic:'family', characters:'阿哥', english:'Older brother', dialects:{ sixian:{pfs:'a1 go1',tones:'ā gō'}, hailu:{pfs:'a1 go1',tones:'ā gō'} }},
+  { id:'f06', topic:'family', characters:'阿姊', english:'Older sister', dialects:{ sixian:{pfs:'a1 zi3',tones:'ā zì'}, hailu:{pfs:'a1 zi3',tones:'ā zì'} }},
+  { id:'f07', topic:'family', characters:'老弟', english:'Younger brother', dialects:{ sixian:{pfs:'lo3 tai5',tones:'lò tāi'}, hailu:{pfs:'lo3 tai5',tones:'lò tāi'} }},
+  { id:'f08', topic:'family', characters:'老妹', english:'Younger sister', dialects:{ sixian:{pfs:'lo3 moi5',tones:'lò mōi'}, hailu:{pfs:'lo3 moi5',tones:'lò mōi'} }},
+  { id:'f09', topic:'family', characters:'細人仔', english:'Child / Children', dialects:{ sixian:{pfs:'se5 ngin2 e3',tones:'sē ngìn é'}, hailu:{pfs:'se5 ngin2 e3',tones:'sē ngìn é'} }},
+  { id:'f10', topic:'family', characters:'屋下人', english:'Family members', dialects:{ sixian:{pfs:'vug4 ha1 ngin2',tones:'vug hā ngìn'}, hailu:{pfs:'vug4 ha1 ngin2',tones:'vug hā ngìn'} }},
+  { id:'d01', topic:'food', characters:'粄條', english:'Flat rice noodles (ban tiao)', dialects:{ sixian:{pfs:'ban3 tiau2',tones:'bàn tiàu'}, hailu:{pfs:'ban3 tiau2',tones:'bàn tiàu'} }},
+  { id:'d02', topic:'food', characters:'擂茶', english:'Ground tea (lei cha)', dialects:{ sixian:{pfs:'lui2 ca2',tones:'lùi cà'}, hailu:{pfs:'lui2 ca2',tones:'lùi cà'} }},
+  { id:'d03', topic:'food', characters:'釀豆腐', english:'Stuffed tofu', dialects:{ sixian:{pfs:'niong5 teu5 fu5',tones:'niōng tēu fū'}, hailu:{pfs:'niong5 teu5 fu5',tones:'niōng tēu fū'} }},
+  { id:'d04', topic:'food', characters:'飯', english:'Rice (cooked)', dialects:{ sixian:{pfs:'fan5',tones:'fān'}, hailu:{pfs:'fan5',tones:'fān'} }},
+  { id:'d05', topic:'food', characters:'茶', english:'Tea', dialects:{ sixian:{pfs:'ca2',tones:'cà'}, hailu:{pfs:'ca2',tones:'cà'} }},
+  { id:'d06', topic:'food', characters:'水', english:'Water', dialects:{ sixian:{pfs:'sui3',tones:'sùi'}, hailu:{pfs:'sui3',tones:'sùi'} }},
+  { id:'d07', topic:'food', characters:'肉', english:'Meat', dialects:{ sixian:{pfs:'niug4',tones:'niug'}, hailu:{pfs:'niug4',tones:'niug'} }},
+  { id:'d08', topic:'food', characters:'菜', english:'Vegetables', dialects:{ sixian:{pfs:'coi5',tones:'cōi'}, hailu:{pfs:'coi5',tones:'cōi'} }},
+  { id:'d09', topic:'food', characters:'鹹菜', english:'Pickled mustard greens', dialects:{ sixian:{pfs:'ham2 coi5',tones:'hàm cōi'}, hailu:{pfs:'ham2 coi5',tones:'hàm cōi'} }},
+  { id:'d10', topic:'food', characters:'客家小炒', english:'Hakka stir-fry', dialects:{ sixian:{pfs:'hag4 ga1 seu3 cau3',tones:'hag gā sèu càu'}, hailu:{pfs:'hag4 ga1 seu3 cau3',tones:'hag gā sèu càu'} }},
+  { id:'p01', topic:'daily', characters:'這個幾多錢？', english:'How much is this?', dialects:{ sixian:{pfs:'lia1 ge5 gi3 do1 qien2?',tones:'liā gē gì dō qièn?'}, hailu:{pfs:'lia1 ge5 gi3 do1 qien2?',tones:'liā gē gì dō qièn?'} }},
+  { id:'p02', topic:'daily', characters:'在哪位？', english:'Where is it?', dialects:{ sixian:{pfs:'cai5 nai2 vi5?',tones:'cāi nài vī?'}, hailu:{pfs:'cai5 nai2 vi5?',tones:'cāi nài vī?'} }},
+  { id:'p03', topic:'daily', characters:'𠊎係客家人', english:'I am Hakka (person)', dialects:{ sixian:{pfs:'ngai2 he5 hag4 ga1 ngin2',tones:'ngài hē hag gā ngìn'}, hailu:{pfs:'ngai2 he5 hag4 ga1 ngin2',tones:'ngài hē hag gā ngìn'} }},
+  { id:'p04', topic:'daily', characters:'𠊎毋識講', english:"I don't know how to say it", dialects:{ sixian:{pfs:'ngai2 m2 siid4 gong3',tones:'ngài m̀ siid góng'}, hailu:{pfs:'ngai2 m2 siid4 gong3',tones:'ngài m̀ siid góng'} }},
+  { id:'p05', topic:'daily', characters:'你講客話無？', english:'Do you speak Hakka?', dialects:{ sixian:{pfs:'ngi2 gong3 hag4 fa5 mo2?',tones:'ngì góng hag fā mò?'}, hailu:{pfs:'ngi5 gong3 hag4 fa5 mo2?',tones:'ngì góng hag fā mò?'} }},
+  { id:'p06', topic:'daily', characters:'愛', english:'Want / Love', dialects:{ sixian:{pfs:'oi5',tones:'ōi'}, hailu:{pfs:'oi5',tones:'ōi'} }},
+  { id:'p07', topic:'daily', characters:'毋愛', english:"Don't want", dialects:{ sixian:{pfs:'m2 oi5',tones:'m̀ ōi'}, hailu:{pfs:'m2 oi5',tones:'m̀ ōi'} }},
+  { id:'p08', topic:'daily', characters:'好食', english:'Delicious', dialects:{ sixian:{pfs:'ho3 siid8',tones:'hó siid'}, hailu:{pfs:'ho3 siid8',tones:'hó siid'} }},
+  { id:'p09', topic:'daily', characters:'慢慢來', english:'Take your time', dialects:{ sixian:{pfs:'man5 man5 loi2',tones:'mān mān lòi'}, hailu:{pfs:'man5 man5 loi2',tones:'mān mān lòi'} }},
+  { id:'p10', topic:'daily', characters:'今晡日', english:'Today', dialects:{ sixian:{pfs:'gim1 bu1 ngid4',tones:'gīm bū ngid'}, hailu:{pfs:'gim1 bu1 ngid4',tones:'gīm bū ngid'} }},
+];
+
+const DIALOGUES = [
+  { id:'dlg1', title:'At the Market', titleCh:'在市場', lines:[
+    {speaker:'A',chars:'你好！這個幾多錢？',eng:'Hello! How much is this?',pfs:{sixian:'ngi2 ho3! lia1 ge5 gi3 do1 qien2?',hailu:'ngi5 ho3! lia1 ge5 gi3 do1 qien2?'}},
+    {speaker:'B',chars:'這個五十蚊。',eng:'This is $50.',pfs:{sixian:'lia1 ge5 ng3 siib8 men1.',hailu:'lia1 ge5 ng3 siib8 men1.'}},
+    {speaker:'A',chars:'好，𠊎愛。',eng:"OK, I'll take it.",pfs:{sixian:'ho3, ngai2 oi5.',hailu:'ho3, ngai2 oi5.'}},
+    {speaker:'B',chars:'多謝！',eng:'Thank you!',pfs:{sixian:'do1 qia5!',hailu:'do1 qia5!'}},
+    {speaker:'A',chars:'多謝你！再見！',eng:'Thank you! Goodbye!',pfs:{sixian:'do1 qia5 ngi2! zai5 gien5!',hailu:'do1 qia5 ngi5! zai5 gien5!'}},
+  ]},
+  { id:'dlg2', title:'Meeting Someone', titleCh:'初次見面', lines:[
+    {speaker:'A',chars:'你好！你講客話無？',eng:'Hello! Do you speak Hakka?',pfs:{sixian:'ngi2 ho3! ngi2 gong3 hag4 fa5 mo2?',hailu:'ngi5 ho3! ngi5 gong3 hag4 fa5 mo2?'}},
+    {speaker:'B',chars:'會啊！𠊎係客家人。',eng:"Yes! I'm Hakka.",pfs:{sixian:'voi5 a1! ngai2 he5 hag4 ga1 ngin2.',hailu:'voi5 a1! ngai2 he5 hag4 ga1 ngin2.'}},
+    {speaker:'A',chars:'㧡好！你食飽未？',eng:'Great! Have you eaten?',pfs:{sixian:'gai5 ho3! ngi2 siid8 bau3 mui5?',hailu:'gai1 ho3! ngi5 siid8 bau3 mui5?'}},
+    {speaker:'B',chars:'食飽了，多謝。',eng:"I've eaten, thanks.",pfs:{sixian:'siid8 bau3 le1, do1 qia5.',hailu:'siid8 bau3 le1, do1 qia5.'}},
+  ]},
+  { id:'dlg3', title:'Ordering Food', titleCh:'點菜', lines:[
+    {speaker:'A',chars:'請問，有粄條無？',eng:'Excuse me, do you have ban tiao?',pfs:{sixian:'qiang3 mun5, iu1 ban3 tiau2 mo2?',hailu:'qiang3 mun5, iu1 ban3 tiau2 mo2?'}},
+    {speaker:'B',chars:'有！愛幾多？',eng:'Yes! How much do you want?',pfs:{sixian:'iu1! oi5 gi3 do1?',hailu:'iu1! oi5 gi3 do1?'}},
+    {speaker:'A',chars:'𠊎愛一碗。',eng:'I want one bowl.',pfs:{sixian:'ngai2 oi5 yid4 von3.',hailu:'ngai2 oi5 yid4 von3.'}},
+    {speaker:'B',chars:'好，慢慢食。',eng:'OK, enjoy your meal.',pfs:{sixian:'ho3, man5 man5 siid8.',hailu:'ho3, man5 man5 siid8.'}},
+    {speaker:'A',chars:'好食！多謝！',eng:'Delicious! Thanks!',pfs:{sixian:'ho3 siid8! do1 qia5!',hailu:'ho3 siid8! do1 qia5!'}},
+  ]},
+];
+
+const SCENARIOS = [
+  { id:'s1', title:'有人同你打招呼', prompt:{chars:'食飽未？',eng:'Have you eaten?'}, choices:[
+    {chars:'食飽了',eng:"Yes, I've eaten",correct:true,pfs:{sixian:'siid8 bau3 le1'}},
+    {chars:'多謝',eng:'Thank you',correct:false},
+    {chars:'再見',eng:'Goodbye',correct:false},
+  ]},
+  { id:'s2', title:'在餐廳', prompt:{chars:'愛食麼个？',eng:'What would you like to eat?'}, choices:[
+    {chars:'𠊎愛一碗粄條',eng:'I want a bowl of ban tiao',correct:true,pfs:{sixian:'ngai2 oi5 yid4 von3 ban3 tiau2'}},
+    {chars:'再見',eng:'Goodbye',correct:false},
+    {chars:'你好',eng:'Hello',correct:false},
+  ]},
+  { id:'s3', title:'有人問你講毋講客話', prompt:{chars:'你講客話無？',eng:'Do you speak Hakka?'}, choices:[
+    {chars:'會啊！𠊎係客家人',eng:"Yes! I'm Hakka",correct:true,pfs:{sixian:'voi5 a1! ngai2 he5 hag4 ga1 ngin2'}},
+    {chars:'好食',eng:'Delicious',correct:false},
+    {chars:'幾多錢？',eng:'How much?',correct:false},
+  ]},
+  { id:'s4', title:'問價錢', prompt:{chars:'(You want to ask the price)',eng:'How do you ask how much something costs?'}, choices:[
+    {chars:'這個幾多錢？',eng:'How much is this?',correct:true,pfs:{sixian:'lia1 ge5 gi3 do1 qien2?'}},
+    {chars:'在哪位？',eng:'Where is it?',correct:false},
+    {chars:'食飽未？',eng:'Have you eaten?',correct:false},
+  ]},
+];
+
+let state = { dialect:'sixian', toneDisplay:'numeric', mode:'browse', topic:null, dialogueId:null, revealedLines:0, scenarioIdx:0, selected:null, score:0, completed:0 };
+
+const audioCache = {};
+
+function getTtsUrl(pfsText, dialect) {
+  const code = DIALECTS[dialect].ttsCode;
+  const clean = pfsText.replace(/[?!.,;：。，！？]/g, '').trim();
+  return `https://tts-${code}.gohakka.org`;
+}
+
+async function fetchTtsAudio(pfsText, dialect) {
+  const cacheKey = `${dialect}:${pfsText}`;
+  if (audioCache[cacheKey]) return audioCache[cacheKey];
+
+  const code = DIALECTS[dialect].ttsCode;
+  const clean = pfsText.replace(/[?!.,;：。，！？]/g, '').trim();
+
+  const isLocal = location.protocol === 'http:' || location.protocol === 'https:';
+  const url = isLocal
+    ? '/tts'
+    : `https://tts-${code}.gohakka.org`;
+
+  const body = isLocal
+    ? `dialect=${encodeURIComponent(code)}&toivun=${encodeURIComponent(clean)}`
+    : (() => { const fd = new FormData(); fd.append('toivun', clean); fd.append('socoi', 'output.wav'); return fd; })();
+
+  const headers = isLocal ? {'Content-Type': 'application/x-www-form-urlencoded'} : {};
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    body,
+    headers,
+  });
+
+  if (!resp.ok) throw new Error(`TTS returned ${resp.status}`);
+
+  const blob = await resp.blob();
+  const audioUrl = URL.createObjectURL(blob);
+  audioCache[cacheKey] = audioUrl;
+  return audioUrl;
+}
+
+async function playTts(pfsText, dialect, btn) {
+  if (btn.classList.contains('playing') || btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  btn.innerHTML = LOADING_SVG;
+
+  try {
+    const audioUrl = await fetchTtsAudio(pfsText, dialect);
+    btn.classList.remove('loading');
+    btn.classList.add('playing');
+    btn.innerHTML = PLAY_SVG;
+
+    const audio = new Audio(audioUrl);
+    audio.addEventListener('ended', () => {
+      btn.classList.remove('playing');
+    });
+    audio.addEventListener('error', () => {
+      btn.classList.remove('playing');
+      btn.classList.add('error');
+      setTimeout(() => btn.classList.remove('error'), 2000);
+    });
+    await audio.play();
+  } catch (e) {
+    btn.classList.remove('loading');
+    btn.classList.add('error');
+    btn.innerHTML = PLAY_SVG;
+    btn.title = 'Audio unavailable — open this file locally to enable TTS';
+    setTimeout(() => btn.classList.remove('error'), 3000);
+  }
+}
+
+const $=s=>document.querySelector(s);
+const main=$('#main');
+
+const sel=$('#dialect-select');
+for(const[k,d]of Object.entries(DIALECTS)){
+  const o=document.createElement('option');
+  o.value=k; o.textContent=`${d.name} ${d.english}`;
+  sel.appendChild(o);
+}
+sel.addEventListener('change',e=>{state.dialect=e.target.value;render();});
+
+document.querySelectorAll('.tone-toggle').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tone-toggle').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.toneDisplay=btn.dataset.tone;
+    render();
+  });
+});
+
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.mode=btn.dataset.mode;
+    state.topic=null;state.dialogueId=null;state.selected=null;
+    render();
+  });
+});
+
+function rom(dialectData){ return state.toneDisplay==='numeric'?dialectData.pfs:dialectData.tones; }
+
+function playBtn(pfs, cls) {
+  cls = cls || 'play-btn';
+  return `<button class="${cls}" data-pfs="${pfs.replace(/"/g,'&quot;')}" aria-label="Play audio">${PLAY_SVG}</button>`;
+}
+
+function bindPlayButtons() {
+  document.querySelectorAll('.play-btn[data-pfs], .play-inline[data-pfs]').forEach(btn => {
+    if (btn._bound) return;
+    btn._bound = true;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playTts(btn.dataset.pfs, state.dialect, btn);
+    });
+  });
+}
+
+function ttsStatusHtml() {
+  return `<div class="tts-status"><span class="dot ok"></span>Audio via gohakka.org — tap any speaker icon to hear real Hakka pronunciation</div>`;
+}
+
+function render(){
+  switch(state.mode){
+    case 'browse': renderBrowse(); break;
+    case 'dialogue': renderDialogue(); break;
+    case 'scenario': renderScenario(); break;
+    case 'freeform': renderFreeform(); break;
+  }
+  bindPlayButtons();
+}
+
+function renderBrowse(){
+  if(!state.topic){
+    main.innerHTML=`<h2 class="section-title">Choose a topic</h2><div class="topic-grid">${
+      Object.entries(TOPICS).map(([k,t])=>`<div class="topic-card" tabindex="0" data-topic="${k}"><span class="topic-chinese">${t.name}</span><span class="topic-english">${t.english}</span></div>`).join('')
+    }</div>`;
+    main.querySelectorAll('.topic-card').forEach(c=>{
+      c.addEventListener('click',()=>{state.topic=c.dataset.topic;render();});
+      c.addEventListener('keydown',e=>{if(e.key==='Enter'){state.topic=c.dataset.topic;render();}});
+    });
+    return;
+  }
+  const phrases=PHRASES.filter(p=>p.topic===state.topic&&p.dialects[state.dialect]);
+  const t=TOPICS[state.topic];
+  let html=`<button class="back-btn" id="back-topic">← Topics</button><h2 class="section-title">${t.name} ${t.english}</h2>`;
+  html += ttsStatusHtml();
+  if(!phrases.length){html+=`<p class="no-data">No phrases for this dialect yet. Try Sixian or Hailu.</p>`;}
+  else{html+=phrases.map(p=>{
+    const d=p.dialects[state.dialect];
+    return`<div class="card">${playBtn(d.pfs)}<div class="card-text"><div class="characters">${p.characters}</div><div class="romanization">${rom(d)}</div><div class="english">${p.english}</div></div></div>`;
+  }).join('');}
+  main.innerHTML=html;
+  $('#back-topic').addEventListener('click',()=>{state.topic=null;render();});
+}
+
+function renderDialogue(){
+  if(!state.dialogueId){
+    main.innerHTML=`<h2 class="section-title">Dialogues</h2><p class="section-desc">Step through conversations line by line. Tap the speaker icon to hear real Hakka pronunciation, then practice aloud.</p><div class="dialogue-grid">${
+      DIALOGUES.map(d=>`<div class="dialogue-card" tabindex="0" data-id="${d.id}"><div class="d-title">${d.titleCh}</div><div class="d-subtitle">${d.title}</div></div>`).join('')
+    }</div>`;
+    main.querySelectorAll('.dialogue-card').forEach(c=>{
+      c.addEventListener('click',()=>{state.dialogueId=c.dataset.id;state.revealedLines=1;render();});
+    });
+    return;
+  }
+  const dlg=DIALOGUES.find(d=>d.id===state.dialogueId);
+  let html=`<button class="back-btn" id="back-dlg">← Dialogues</button><h2 class="section-title">${dlg.titleCh} — ${dlg.title}</h2>`;
+  html+=`<div class="progress-bar">${dlg.lines.map((_,i)=>`<div class="progress-dot${i<state.revealedLines?' done':''}${i===state.revealedLines-1?' current':''}"></div>`).join('')}</div>`;
+  dlg.lines.slice(0,state.revealedLines).forEach(line=>{
+    const pfs=line.pfs[state.dialect]||Object.values(line.pfs)[0]||'';
+    html+=`<div class="dialogue-line speaker-${line.speaker}"><span class="speaker-label">${line.speaker}</span><div class="line-content"><div class="characters">${line.chars}${playBtn(pfs,'play-inline')}</div><div class="romanization">${pfs}</div><div class="english">${line.eng}</div></div></div>`;
+  });
+  if(state.revealedLines<dlg.lines.length){
+    html+=`<button class="btn" id="next-line" style="margin-top:0.75rem">Next line →</button>`;
+  }else{
+    html+=`<div style="margin-top:0.75rem;text-align:center"><p style="color:var(--jade);font-weight:600;margin-bottom:0.4rem">Dialogue complete</p><button class="btn" id="restart-dlg">Restart</button></div>`;
+  }
+  main.innerHTML=html;
+  $('#back-dlg').addEventListener('click',()=>{state.dialogueId=null;render();});
+  const nl=$('#next-line');if(nl)nl.addEventListener('click',()=>{state.revealedLines++;render();});
+  const rd=$('#restart-dlg');if(rd)rd.addEventListener('click',()=>{state.revealedLines=1;render();});
+}
+
+function renderScenario(){
+  const sc=SCENARIOS[state.scenarioIdx];
+  let html=`<h2 class="section-title">Scenarios</h2><p class="score">Score: ${state.score} / ${state.completed}</p>`;
+  html+=`<div class="scenario-prompt"><div class="characters">${sc.prompt.chars}</div><div class="english">${sc.prompt.eng}</div></div>`;
+  html+=`<div class="choices">${sc.choices.map((c,i)=>{
+    let cls='choice-btn';
+    if(state.selected!==null){
+      if(c.correct)cls+=' correct chosen';
+      else if(i===state.selected)cls+=' incorrect chosen';
+    }
+    let inner=`<div class="choice-chars">${c.chars}</div><div class="choice-eng">${c.eng}</div>`;
+    if(state.selected!==null&&c.correct&&c.pfs){
+      const r=c.pfs[state.dialect]||Object.values(c.pfs)[0];
+      inner+=`<div class="choice-rom">${r} ${playBtn(r,'play-inline')}</div>`;
+    }
+    return`<button class="${cls}" data-idx="${i}">${inner}</button>`;
+  }).join('')}</div>`;
+  if(state.selected!==null){
+    html+=`<button class="btn" id="next-sc" style="margin-top:0.75rem">Next scenario →</button>`;
+  }
+  main.innerHTML=html;
+  main.querySelectorAll('.choice-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(state.selected!==null)return;
+      const idx=parseInt(btn.dataset.idx);
+      state.selected=idx;
+      state.completed++;
+      if(sc.choices[idx].correct)state.score++;
+      render();
+    });
+  });
+  const ns=$('#next-sc');if(ns)ns.addEventListener('click',()=>{state.selected=null;state.scenarioIdx=(state.scenarioIdx+1)%SCENARIOS.length;render();});
+}
+
+function renderFreeform(){
+  const available=PHRASES.filter(p=>p.dialects[state.dialect]);
+  if(!available.length){main.innerHTML=`<p class="no-data">No phrases for this dialect.</p>`;return;}
+  if(!state.freeformPhrase||!state.freeformPhrase.dialects[state.dialect]){
+    state.freeformPhrase=available[Math.floor(Math.random()*available.length)];
+    state.freeformFeedback=null;
+  }
+  const p=state.freeformPhrase;
+  let html=`<h2 class="section-title">Free Form Practice</h2><p class="section-desc">Type the Hakka translation (characters or romanization) for the English prompt.</p>`;
+  html+=`<div class="scenario-prompt"><div class="english" style="font-size:1.1rem;color:var(--text)">${p.english}</div></div>`;
+  html+=`<form id="ff-form"><input type="text" class="freeform-input" id="ff-input" placeholder="Type in Hakka..." autocomplete="off"><button type="submit" class="btn">Check</button></form>`;
+  if(state.freeformFeedback){
+    const fb=state.freeformFeedback;
+    const d=p.dialects[state.dialect];
+    html+=`<div class="feedback"><p class="feedback-msg ${fb.ok?'ok':'wrong'}">${fb.msg}</p>`;
+    if(fb.expected){
+      html+=`<div style="margin-top:0.4rem;display:flex;align-items:center;gap:0.5rem">${playBtn(d.pfs,'play-inline')}<div><div class="characters">${p.characters}</div><div class="romanization">${rom(d)}</div></div></div>`;
+    }
+    html+=`<button class="btn" id="ff-next" style="margin-top:0.6rem">Next →</button></div>`;
+  }
+  main.innerHTML=html;
+  const input=$('#ff-input');
+  if(!state.freeformFeedback)input.focus();
+  $('#ff-form').addEventListener('submit',e=>{
+    e.preventDefault();
+    const val=input.value.trim();if(!val)return;
+    const target=p.dialects[state.dialect];
+    const targetRom=target.pfs.replace(/[0-9]/g,'').toLowerCase();
+    if(val===p.characters){state.freeformFeedback={ok:true,msg:'Perfect! Exact character match.'};}
+    else if(val.toLowerCase()===target.pfs.toLowerCase()){state.freeformFeedback={ok:true,msg:'Perfect! Exact romanization match.'};}
+    else if(val.replace(/[0-9]/g,'').toLowerCase()===targetRom){state.freeformFeedback={ok:true,msg:'Correct sounds! Watch the tones.'};}
+    else{state.freeformFeedback={ok:false,msg:'Not quite. Here\'s the answer:',expected:true};}
+    render();
+  });
+  const nx=$('#ff-next');if(nx)nx.addEventListener('click',()=>{
+    state.freeformPhrase=available[Math.floor(Math.random()*available.length)];
+    state.freeformFeedback=null;
+    render();
+  });
+}
+
+render();
+</script>
+</html>
