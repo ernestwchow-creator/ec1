@@ -748,15 +748,22 @@ async function fetchTtsAudio(pfsText, dialect) {
 
   const code = DIALECTS[dialect].ttsCode;
   const clean = pfsText.replace(/[?!.,;：。，！？]/g, '').trim();
-  const url = `https://tts-${code}.gohakka.org`;
 
-  const formData = new FormData();
-  formData.append('toivun', clean);
-  formData.append('socoi', 'output.wav');
+  const isLocal = location.protocol === 'http:' || location.protocol === 'https:';
+  const url = isLocal
+    ? '/tts'
+    : `https://tts-${code}.gohakka.org`;
+
+  const body = isLocal
+    ? `dialect=${encodeURIComponent(code)}&toivun=${encodeURIComponent(clean)}`
+    : (() => { const fd = new FormData(); fd.append('toivun', clean); fd.append('socoi', 'output.wav'); return fd; })();
+
+  const headers = isLocal ? {'Content-Type': 'application/x-www-form-urlencoded'} : {};
 
   const resp = await fetch(url, {
     method: 'POST',
-    body: formData,
+    body,
+    headers,
   });
 
   if (!resp.ok) throw new Error(`TTS returned ${resp.status}`);
