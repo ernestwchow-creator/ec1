@@ -12,14 +12,32 @@ import urllib.request
 import urllib.parse
 import os
 import sys
-import json
 
 PORT = 8300
-DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PUBLIC_DIR = os.path.join(SCRIPT_DIR, "public")
+HTML_FILE = os.path.join(PUBLIC_DIR, "hakka-standalone.html")
 
-class HakkaHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=DIR, **kwargs)
+
+class HakkaHandler(http.server.BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        if self.path in ("/", "/index.html", "/hakka-standalone.html"):
+            self.serve_html()
+        else:
+            self.send_error(404)
+
+    def serve_html(self):
+        if not os.path.isfile(HTML_FILE):
+            self.send_error(500, f"Cannot find {HTML_FILE}")
+            return
+        with open(HTML_FILE, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         if self.path == "/tts":
@@ -63,7 +81,6 @@ class HakkaHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(audio)))
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(audio)
         except Exception as e:
@@ -71,22 +88,27 @@ class HakkaHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
-    def end_headers(self):
-        if self.command == "GET":
-            self.send_header("Access-Control-Allow-Origin", "*")
-        super().end_headers()
+    def log_message(self, format, *args):
+        path = args[0].split()[1] if args else ""
+        if path == "/tts":
+            sys.stderr.write(f"  TTS request: {args}\n")
 
 
 if __name__ == "__main__":
+    if not os.path.isfile(HTML_FILE):
+        print(f"Error: Cannot find {HTML_FILE}")
+        print(f"Make sure you run this from the hakka-app directory:")
+        print(f"  cd hakka-app && python3 serve.py")
+        sys.exit(1)
+
     with http.server.HTTPServer(("", PORT), HakkaHandler) as httpd:
         print(f"\n  學客話 Learn Hakka")
         print(f"  ─────────────────")
-        print(f"  Open http://localhost:{PORT}/hakka-standalone.html\n")
+        print(f"  Open http://localhost:{PORT}\n")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
