@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OxaCheck — Oxalate Estimator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>OxaCheck</h1>
+    <p class="subtitle">Photograph your food. Estimate oxalate. Get calcium guidance.</p>
+    <button id="settings-btn" class="icon-btn" aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div id="settings-panel" class="panel hidden">
+    <label for="api-key-input">Anthropic API Key</label>
+    <div class="input-row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      <button id="save-key-btn">Save</button>
+    </div>
+    <p class="hint">Your key is stored in this browser only and sent directly to the Anthropic API. It is never stored on any server.</p>
+  </div>
+
+  <main>
+    <section id="capture-section">
+      <div id="camera-area">
+        <video id="camera-preview" autoplay playsinline></video>
+        <canvas id="photo-canvas"></canvas>
+        <img id="photo-preview" alt="Captured photo">
+      </div>
+      <div class="capture-controls">
+        <button id="take-photo-btn" class="primary-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+          Take Photo
+        </button>
+        <label id="upload-label" class="secondary-btn" for="upload-input">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload
+        </label>
+        <input type="file" id="upload-input" accept="image/*" capture="environment" hidden>
+        <button id="retake-btn" class="secondary-btn hidden">Retake</button>
+        <button id="analyze-btn" class="primary-btn hidden">Analyze</button>
+      </div>
+    </section>
+
+    <section id="loading-section" class="hidden">
+      <div class="spinner"></div>
+      <p>Identifying foods and estimating oxalate content...</p>
+    </section>
+
+    <section id="results-section" class="hidden">
+      <h2>Analysis Results</h2>
+      <p id="meal-description" class="meal-desc"></p>
+
+      <div id="risk-banner" class="risk-banner"></div>
+
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-label">Total Oxalate</div>
+          <div class="card-value" id="total-oxalate">—</div>
+          <div class="card-unit">mg</div>
+        </div>
+        <div class="card accent">
+          <div class="card-label">Calcium Needed</div>
+          <div class="card-value" id="calcium-needed">—</div>
+          <div class="card-unit">mg calcium citrate</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Tablets</div>
+          <div class="card-value" id="tablet-count">—</div>
+          <div class="card-unit">x 315 mg</div>
+        </div>
+      </div>
+
+      <div id="food-details" class="food-list"></div>
+
+      <div class="disclaimer">
+        <strong>Disclaimer:</strong> This tool provides estimates for educational purposes only.
+        Oxalate content varies with growing conditions, preparation, and cooking.
+        Consult a healthcare professional or registered dietitian before making dietary changes
+        or starting supplements. Not a substitute for medical advice.
+      </div>
+
+      <button id="new-analysis-btn" class="primary-btn full-width">New Analysis</button>
+    </section>
+
+    <section id="reference-section">
+      <details>
+        <summary>Oxalate Reference Database</summary>
+        <div id="reference-content">
+          <input type="text" id="search-foods" placeholder="Search foods...">
+          <table id="food-table">
+            <thead><tr><th>Food</th><th>Oxalate (mg/100g)</th><th>Category</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
