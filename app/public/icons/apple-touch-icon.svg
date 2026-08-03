@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <rect width="180" height="180" fill="#2563eb" rx="36"/>
+  <circle cx="90" cy="90" r="76.5" fill="#1d4ed8"/>
+  <text x="90" y="111.6" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="57.6" fill="white">Ox</text>
+  <text x="90" y="147.6" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="400" font-size="19.8" fill="#93c5fd">Ca</text>
+  <circle cx="90" cy="50.4" r="14.4" fill="none" stroke="#34d399" stroke-width="3.6"/>
+  <line x1="82.8" y1="50.4" x2="97.2" y2="50.4" stroke="#34d399" stroke-width="2.6999999999999997"/>
+  <line x1="90" y1="43.199999999999996" x2="90" y2="57.6" stroke="#34d399" stroke-width="2.6999999999999997"/>
+</svg>

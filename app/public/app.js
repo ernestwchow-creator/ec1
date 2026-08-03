@@ -1,12 +1,29 @@
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
-  stream: null,
   capturedImage: null,
   apiKey: localStorage.getItem("oxacheck_api_key") || "",
 };
 
-// Settings
+// -- Service Worker Registration --
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js");
+}
+
+// -- iOS Install Banner --
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+
+if (isIOS && !isStandalone && !sessionStorage.getItem("install_dismissed")) {
+  const banner = $("#install-banner");
+  banner.classList.remove("hidden");
+  $("#install-dismiss").addEventListener("click", () => {
+    banner.classList.add("hidden");
+    sessionStorage.setItem("install_dismissed", "1");
+  });
+}
+
+// -- Settings --
 const settingsBtn = $("#settings-btn");
 const settingsPanel = $("#settings-panel");
 const apiKeyInput = $("#api-key-input");
@@ -26,79 +43,87 @@ saveKeyBtn.addEventListener("click", () => {
   settingsPanel.classList.add("hidden");
 });
 
-// Camera
-const video = $("#camera-preview");
-const canvas = $("#photo-canvas");
+// -- Photo Capture --
+const photoArea = $("#photo-area");
 const photoPreview = $("#photo-preview");
-const takePhotoBtn = $("#take-photo-btn");
-const uploadInput = $("#upload-input");
-const uploadLabel = $("#upload-label");
-const retakeBtn = $("#retake-btn");
+const placeholder = $("#placeholder-icon");
+const cameraInput = $("#camera-input");
+const galleryInput = $("#gallery-input");
+const cameraBtn = $("#camera-btn");
+const galleryBtn = $("#gallery-btn");
 const analyzeBtn = $("#analyze-btn");
+const retakeBtn = $("#retake-btn");
 
-async function startCamera() {
-  try {
-    state.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 960 } },
-    });
-    video.srcObject = state.stream;
-    video.style.display = "block";
-    photoPreview.style.display = "none";
-  } catch {
-    video.style.display = "none";
-  }
+function resizeImage(dataUrl, maxDim) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width;
+      let h = img.height;
+      if (w <= maxDim && h <= maxDim) {
+        resolve(dataUrl);
+        return;
+      }
+      const scale = maxDim / Math.max(w, h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.src = dataUrl;
+  });
 }
 
-function stopCamera() {
-  if (state.stream) {
-    state.stream.getTracks().forEach((t) => t.stop());
-    state.stream = null;
-  }
+function handleFileSelect(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const resized = await resizeImage(reader.result, 1280);
+    showCaptured(resized);
+  };
+  reader.readAsDataURL(file);
 }
 
 function showCaptured(dataUrl) {
   state.capturedImage = dataUrl;
-  stopCamera();
-  video.style.display = "none";
   photoPreview.src = dataUrl;
   photoPreview.style.display = "block";
-  takePhotoBtn.classList.add("hidden");
-  uploadLabel.classList.add("hidden");
-  retakeBtn.classList.remove("hidden");
+  placeholder.style.display = "none";
+  photoArea.classList.add("has-photo");
+
+  cameraBtn.classList.add("hidden");
+  galleryBtn.classList.add("hidden");
   analyzeBtn.classList.remove("hidden");
+  retakeBtn.classList.remove("hidden");
 }
 
 function resetCapture() {
   state.capturedImage = null;
   photoPreview.style.display = "none";
-  retakeBtn.classList.add("hidden");
+  photoPreview.src = "";
+  placeholder.style.display = "flex";
+  photoArea.classList.remove("has-photo");
+
+  cameraBtn.classList.remove("hidden");
+  galleryBtn.classList.remove("hidden");
   analyzeBtn.classList.add("hidden");
-  takePhotoBtn.classList.remove("hidden");
-  uploadLabel.classList.remove("hidden");
+  retakeBtn.classList.add("hidden");
+
   $("#results-section").classList.add("hidden");
-  startCamera();
+  $("#capture-section").classList.remove("hidden");
+
+  cameraInput.value = "";
+  galleryInput.value = "";
 }
 
-takePhotoBtn.addEventListener("click", () => {
-  if (!video.srcObject) return;
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0);
-  showCaptured(canvas.toDataURL("image/jpeg", 0.85));
-});
-
-uploadInput.addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => showCaptured(reader.result);
-  reader.readAsDataURL(file);
-  uploadInput.value = "";
-});
-
+cameraInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
+galleryInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
 retakeBtn.addEventListener("click", resetCapture);
 
-// Analysis
+// -- Analysis --
 analyzeBtn.addEventListener("click", async () => {
   if (!state.capturedImage) return;
 
@@ -124,12 +149,24 @@ analyzeBtn.addEventListener("click", async () => {
 
     renderResults(data);
   } catch (err) {
-    alert("Analysis failed: " + err.message);
+    showError(err.message);
     $("#capture-section").classList.remove("hidden");
   } finally {
     $("#loading-section").classList.add("hidden");
   }
 });
+
+function showError(msg) {
+  const el = document.createElement("div");
+  el.className = "error-toast";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add("visible"), 10);
+  setTimeout(() => {
+    el.classList.remove("visible");
+    setTimeout(() => el.remove(), 300);
+  }, 4000);
+}
 
 function renderResults(data) {
   $("#results-section").classList.remove("hidden");
@@ -167,7 +204,7 @@ function renderResults(data) {
       return `
       <div class="food-item">
         <div class="food-item-header">
-          <span class="food-name">${f.name}</span>
+          <span class="food-name">${esc(f.name)}</span>
           <span class="food-oxalate">${f.estimated_oxalate_mg !== null ? f.estimated_oxalate_mg + " mg" : "?"}</span>
         </div>
         <div class="food-meta">
@@ -175,7 +212,7 @@ function renderResults(data) {
           ${f.oxalate_range_mg ? ` · Range: ${f.oxalate_range_mg[0]}–${f.oxalate_range_mg[1]} mg` : ""}
           ${f.confidence !== "high" ? ` · ${f.confidence} confidence` : ""}
         </div>
-        ${f.note ? `<div class="food-note">${f.note}</div>` : ""}
+        ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
         ${!f.in_database ? `<div class="food-unknown">Not in database — oxalate estimate unavailable</div>` : ""}
         ${
           f.in_database
@@ -185,12 +222,20 @@ function renderResults(data) {
       </div>`;
     })
     .join("");
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// New analysis
+function esc(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// -- New Analysis --
 $("#new-analysis-btn").addEventListener("click", resetCapture);
 
-// Reference database
+// -- Reference Database --
 async function loadReference() {
   try {
     const res = await fetch("/api/database");
@@ -202,9 +247,9 @@ async function loadReference() {
         .map(
           (f) => `
         <tr>
-          <td>${f.name}</td>
+          <td>${esc(f.name)}</td>
           <td>${f.oxalate_mg_per_100g}</td>
-          <td>${f.category}</td>
+          <td>${esc(f.category)}</td>
         </tr>`
         )
         .join("");
@@ -221,9 +266,36 @@ async function loadReference() {
   }
 }
 
-// Init
+// -- Error toast styles (injected once) --
+const toastStyle = document.createElement("style");
+toastStyle.textContent = `
+.error-toast {
+  position: fixed;
+  bottom: calc(20px + var(--safe-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  background: var(--risk-high);
+  color: white;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.error-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}`;
+document.head.appendChild(toastStyle);
+
+// -- Init --
 if (!state.apiKey) {
   settingsPanel.classList.remove("hidden");
 }
-startCamera();
 loadReference();
