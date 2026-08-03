@@ -6,6 +6,7 @@ const fs = require("fs");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const anthropic = new Anthropic();
 
 const oxalateDb = JSON.parse(fs.readFileSync(path.join(__dirname, "oxalate-database.json"), "utf-8"));
 
@@ -66,11 +67,6 @@ app.use(express.json({ limit: "10mb" }));
 
 app.post("/api/analyze", upload.single("photo"), async (req, res) => {
   try {
-    const apiKey = req.headers["x-api-key"];
-    if (!apiKey) {
-      return res.status(400).json({ error: "API key required. Enter your Anthropic API key in the settings." });
-    }
-
     let imageData, mediaType;
 
     if (req.file) {
@@ -85,8 +81,7 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1024,
       messages: [

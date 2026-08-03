@@ -1,10 +1,5 @@
 const $ = (sel) => document.querySelector(sel);
 
-const state = {
-  capturedImage: null,
-  apiKey: localStorage.getItem("oxacheck_api_key") || "",
-};
-
 // -- Service Worker Registration --
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js");
@@ -23,26 +18,6 @@ if (isIOS && !isStandalone && !sessionStorage.getItem("install_dismissed")) {
   });
 }
 
-// -- Settings --
-const settingsBtn = $("#settings-btn");
-const settingsPanel = $("#settings-panel");
-const apiKeyInput = $("#api-key-input");
-const saveKeyBtn = $("#save-key-btn");
-
-settingsBtn.addEventListener("click", () => {
-  settingsPanel.classList.toggle("hidden");
-  if (!settingsPanel.classList.contains("hidden")) {
-    apiKeyInput.value = state.apiKey;
-    apiKeyInput.focus();
-  }
-});
-
-saveKeyBtn.addEventListener("click", () => {
-  state.apiKey = apiKeyInput.value.trim();
-  localStorage.setItem("oxacheck_api_key", state.apiKey);
-  settingsPanel.classList.add("hidden");
-});
-
 // -- Photo Capture --
 const photoArea = $("#photo-area");
 const photoPreview = $("#photo-preview");
@@ -53,6 +28,8 @@ const cameraBtn = $("#camera-btn");
 const galleryBtn = $("#gallery-btn");
 const analyzeBtn = $("#analyze-btn");
 const retakeBtn = $("#retake-btn");
+
+let capturedImage = null;
 
 function resizeImage(dataUrl, maxDim) {
   return new Promise((resolve) => {
@@ -88,7 +65,7 @@ function handleFileSelect(file) {
 }
 
 function showCaptured(dataUrl) {
-  state.capturedImage = dataUrl;
+  capturedImage = dataUrl;
   photoPreview.src = dataUrl;
   photoPreview.style.display = "block";
   placeholder.style.display = "none";
@@ -101,7 +78,7 @@ function showCaptured(dataUrl) {
 }
 
 function resetCapture() {
-  state.capturedImage = null;
+  capturedImage = null;
   photoPreview.style.display = "none";
   photoPreview.src = "";
   placeholder.style.display = "flex";
@@ -125,13 +102,7 @@ retakeBtn.addEventListener("click", resetCapture);
 
 // -- Analysis --
 analyzeBtn.addEventListener("click", async () => {
-  if (!state.capturedImage) return;
-
-  if (!state.apiKey) {
-    settingsPanel.classList.remove("hidden");
-    apiKeyInput.focus();
-    return;
-  }
+  if (!capturedImage) return;
 
   $("#capture-section").classList.add("hidden");
   $("#loading-section").classList.remove("hidden");
@@ -140,8 +111,8 @@ analyzeBtn.addEventListener("click", async () => {
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": state.apiKey },
-      body: JSON.stringify({ image: state.capturedImage }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: capturedImage }),
     });
 
     const data = await res.json();
@@ -295,7 +266,4 @@ toastStyle.textContent = `
 document.head.appendChild(toastStyle);
 
 // -- Init --
-if (!state.apiKey) {
-  settingsPanel.classList.remove("hidden");
-}
 loadReference();
