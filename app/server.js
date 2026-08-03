@@ -28,38 +28,78 @@ function findFoodInDatabase(foodName) {
   return null;
 }
 
-function calculateCalciumRecommendation(totalOxalateMg) {
-  const stoichiometricCa = totalOxalateMg * MOLAR_RATIO_CA_TO_OX;
-  const recommendedCa = stoichiometricCa * BINDING_SAFETY_FACTOR;
+function buildFoodResult(food) {
+  const dbEntry = findFoodInDatabase(food.name);
+  const w = food.weight_grams;
+  const oxPer100 = dbEntry ? dbEntry.oxalate_mg_per_100g : null;
+  const estOx = oxPer100 !== null ? (oxPer100 * w) / 100 : null;
+  const rangeLow = dbEntry ? (dbEntry.range[0] * w) / 100 : null;
+  const rangeHigh = dbEntry ? (dbEntry.range[1] * w) / 100 : null;
+  const estCa = dbEntry ? (dbEntry.calcium_mg_per_100g * w) / 100 : null;
+  const totalCarbs = dbEntry ? (dbEntry.carbs_g_per_100g * w) / 100 : null;
+  const fiber = dbEntry ? (dbEntry.fiber_g_per_100g * w) / 100 : null;
+  const netCarbs = totalCarbs !== null && fiber !== null ? totalCarbs - fiber : null;
+  const gi = dbEntry ? dbEntry.glycemic_index : null;
+  const gl = gi !== null && netCarbs !== null ? Math.round((gi * netCarbs) / 100) : null;
 
-  const calciumCitrateMg = recommendedCa;
-  const calciumCitrateTablets = Math.ceil(calciumCitrateMg / 315);
+  return {
+    name: food.name,
+    weight_grams: w,
+    confidence: food.confidence,
+    alternatives: food.alternatives || [],
+    in_database: !!dbEntry,
+    database_name: dbEntry?.name || null,
+    oxalate_per_100g: oxPer100,
+    estimated_oxalate_mg: estOx !== null ? Math.round(estOx) : null,
+    oxalate_range_mg: rangeLow !== null ? [Math.round(rangeLow), Math.round(rangeHigh)] : null,
+    dietary_calcium_mg: estCa !== null ? Math.round(estCa) : null,
+    total_carbs_g: totalCarbs !== null ? Math.round(totalCarbs * 10) / 10 : null,
+    fiber_g: fiber !== null ? Math.round(fiber * 10) / 10 : null,
+    net_carbs_g: netCarbs !== null ? Math.round(netCarbs * 10) / 10 : null,
+    glycemic_index: gi,
+    glycemic_load: gl,
+    category: dbEntry?.category || "unknown",
+    note: dbEntry?.note || null,
+  };
+}
+
+function calculateCalciumRecommendation(totalOxalateMg, dietaryCalciumMg) {
+  const stoichiometricCa = totalOxalateMg * MOLAR_RATIO_CA_TO_OX;
+  const targetCa = stoichiometricCa * BINDING_SAFETY_FACTOR;
+  const supplementCa = Math.max(0, targetCa - dietaryCalciumMg);
+  const tablets = supplementCa > 0 ? Math.ceil(supplementCa / 315) : 0;
 
   return {
     oxalate_mg: Math.round(totalOxalateMg),
     stoichiometric_calcium_mg: Math.round(stoichiometricCa),
-    recommended_calcium_mg: Math.round(recommendedCa),
-    calcium_citrate_tablets: calciumCitrateTablets,
+    target_calcium_mg: Math.round(targetCa),
+    dietary_calcium_mg: Math.round(dietaryCalciumMg),
+    supplement_calcium_mg: Math.round(supplementCa),
+    calcium_citrate_tablets: tablets,
     calcium_citrate_tablet_size_mg: 315,
   };
 }
 
 const FOOD_IDENTIFICATION_PROMPT = `You are a food identification expert. Analyze this photo and identify all visible food items.
 
-For each food item, estimate:
-1. The food name (use common names, be specific — e.g., "spinach" not "greens")
+For each food item, provide:
+1. The food name (use common names, be specific — e.g., "spinach" not "greens", "tofu" not "white cubes")
 2. The estimated weight in grams of the portion visible
+3. Your confidence level
+4. If confidence is NOT "high", provide 2-3 alternative identifications that it could be
 
 Respond ONLY in this exact JSON format, no other text:
 {
   "foods": [
-    { "name": "food name", "weight_grams": 150, "confidence": "high" },
-    { "name": "another food", "weight_grams": 80, "confidence": "medium" }
+    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [] },
+    { "name": "best guess", "weight_grams": 80, "confidence": "medium", "alternatives": ["alternative 1", "alternative 2"] }
   ],
   "meal_description": "Brief description of the meal"
 }
 
 Confidence levels: "high" = clearly identifiable, "medium" = likely but uncertain, "low" = best guess.
+For "high" confidence items, alternatives should be an empty array.
+For "medium" or "low", always include plausible alternatives.
 Use standard food names that would appear in a nutrition database. If you see a composite dish (e.g., salad), break it into individual ingredients where possible.`;
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -104,37 +144,30 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       return res.status(500).json({ error: "Failed to parse food identification response", raw: responseText });
     }
 
+    const foodResults = identified.foods.map((food) => buildFoodResult(food));
+
     let totalOxalate = 0;
-    const foodResults = identified.foods.map((food) => {
-      const dbEntry = findFoodInDatabase(food.name);
-      const oxalatePer100g = dbEntry ? dbEntry.oxalate_mg_per_100g : null;
-      const estimatedOxalate = oxalatePer100g !== null ? (oxalatePer100g * food.weight_grams) / 100 : null;
+    let totalDietaryCa = 0;
+    let totalNetCarbs = 0;
+    let totalCarbs = 0;
+    let totalFiber = 0;
+    let maxGI = 0;
 
-      if (estimatedOxalate !== null) {
-        totalOxalate += estimatedOxalate;
-      }
+    for (const f of foodResults) {
+      if (f.estimated_oxalate_mg !== null) totalOxalate += f.estimated_oxalate_mg;
+      if (f.dietary_calcium_mg !== null) totalDietaryCa += f.dietary_calcium_mg;
+      if (f.net_carbs_g !== null) totalNetCarbs += f.net_carbs_g;
+      if (f.total_carbs_g !== null) totalCarbs += f.total_carbs_g;
+      if (f.fiber_g !== null) totalFiber += f.fiber_g;
+      if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
+    }
 
-      const rangeLow = dbEntry ? (dbEntry.range[0] * food.weight_grams) / 100 : null;
-      const rangeHigh = dbEntry ? (dbEntry.range[1] * food.weight_grams) / 100 : null;
-
-      return {
-        name: food.name,
-        weight_grams: food.weight_grams,
-        confidence: food.confidence,
-        in_database: !!dbEntry,
-        database_name: dbEntry?.name || null,
-        oxalate_per_100g: oxalatePer100g,
-        estimated_oxalate_mg: estimatedOxalate !== null ? Math.round(estimatedOxalate) : null,
-        oxalate_range_mg: rangeLow !== null ? [Math.round(rangeLow), Math.round(rangeHigh)] : null,
-        category: dbEntry?.category || "unknown",
-        note: dbEntry?.note || null,
-      };
-    });
-
-    const calcium = calculateCalciumRecommendation(totalOxalate);
+    const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa);
 
     const riskLevel =
       totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
+
+    const giLabel = maxGI >= 70 ? "high" : maxGI >= 56 ? "medium" : "low";
 
     res.json({
       meal_description: identified.meal_description,
@@ -142,6 +175,13 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       total_oxalate_mg: Math.round(totalOxalate),
       risk_level: riskLevel,
       calcium_recommendation: calcium,
+      carb_summary: {
+        total_carbs_g: Math.round(totalCarbs * 10) / 10,
+        total_fiber_g: Math.round(totalFiber * 10) / 10,
+        net_carbs_g: Math.round(totalNetCarbs * 10) / 10,
+        highest_gi: maxGI,
+        gi_label: giLabel,
+      },
     });
   } catch (err) {
     if (err.status === 401) {
@@ -152,19 +192,55 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
   }
 });
 
+app.post("/api/recalculate", (req, res) => {
+  const { foods } = req.body;
+  if (!Array.isArray(foods)) {
+    return res.status(400).json({ error: "foods array required" });
+  }
+
+  const foodResults = foods.map((food) => buildFoodResult(food));
+
+  let totalOxalate = 0;
+  let totalDietaryCa = 0;
+  let totalNetCarbs = 0;
+  let totalCarbs = 0;
+  let totalFiber = 0;
+  let maxGI = 0;
+
+  for (const f of foodResults) {
+    if (f.estimated_oxalate_mg !== null) totalOxalate += f.estimated_oxalate_mg;
+    if (f.dietary_calcium_mg !== null) totalDietaryCa += f.dietary_calcium_mg;
+    if (f.net_carbs_g !== null) totalNetCarbs += f.net_carbs_g;
+    if (f.total_carbs_g !== null) totalCarbs += f.total_carbs_g;
+    if (f.fiber_g !== null) totalFiber += f.fiber_g;
+    if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
+  }
+
+  const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa);
+  const riskLevel =
+    totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
+  const giLabel = maxGI >= 70 ? "high" : maxGI >= 56 ? "medium" : "low";
+
+  res.json({
+    foods: foodResults,
+    total_oxalate_mg: Math.round(totalOxalate),
+    risk_level: riskLevel,
+    calcium_recommendation: calcium,
+    carb_summary: {
+      total_carbs_g: Math.round(totalCarbs * 10) / 10,
+      total_fiber_g: Math.round(totalFiber * 10) / 10,
+      net_carbs_g: Math.round(totalNetCarbs * 10) / 10,
+      highest_gi: maxGI,
+      gi_label: giLabel,
+    },
+  });
+});
+
 app.get("/api/database", (_req, res) => {
   const foods = Object.entries(oxalateDb.foods)
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.oxalate_mg_per_100g - a.oxalate_mg_per_100g);
   res.json({ foods, metadata: oxalateDb.metadata });
-});
-
-app.get("/api/calculate", (req, res) => {
-  const oxalateMg = parseFloat(req.query.oxalate);
-  if (isNaN(oxalateMg) || oxalateMg < 0) {
-    return res.status(400).json({ error: "Valid oxalate amount in mg required" });
-  }
-  res.json(calculateCalciumRecommendation(oxalateMg));
 });
 
 const PORT = process.env.PORT || 3000;

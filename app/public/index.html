@@ -14,7 +14,6 @@
   <meta name="apple-mobile-web-app-title" content="OxaCheck">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg">
 
-  <!-- Prevent tap delay on iOS -->
   <meta name="format-detection" content="telephone=no">
 
   <title>OxaCheck — Oxalate Estimator</title>
@@ -23,7 +22,7 @@
 <body>
   <header>
     <h1>OxaCheck</h1>
-    <p class="subtitle">Photograph your food. Estimate oxalate. Get calcium guidance.</p>
+    <p class="subtitle">Photograph your food. Estimate oxalate &amp; carbs. Get calcium guidance.</p>
   </header>
 
   <div id="install-banner" class="install-banner hidden">
@@ -67,7 +66,7 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
-          Analyze Oxalate
+          Analyze
         </button>
         <button id="retake-btn" class="secondary-btn hidden">Choose Different Photo</button>
       </div>
@@ -84,24 +83,50 @@
 
       <div id="risk-banner" class="risk-banner"></div>
 
+      <!-- Oxalate & Calcium -->
+      <h3 class="section-title">Oxalate &amp; Calcium</h3>
       <div class="summary-cards">
         <div class="card">
           <div class="card-label">Total Oxalate</div>
           <div class="card-value" id="total-oxalate">&mdash;</div>
           <div class="card-unit">mg</div>
         </div>
-        <div class="card accent">
-          <div class="card-label">Calcium Needed</div>
-          <div class="card-value" id="calcium-needed">&mdash;</div>
-          <div class="card-unit">mg calcium citrate</div>
-        </div>
         <div class="card">
-          <div class="card-label">Tablets</div>
-          <div class="card-value" id="tablet-count">&mdash;</div>
-          <div class="card-unit">&times; 315 mg</div>
+          <div class="card-label">Dietary Ca</div>
+          <div class="card-value" id="dietary-calcium">&mdash;</div>
+          <div class="card-unit">mg in food</div>
+        </div>
+        <div class="card accent">
+          <div class="card-label">Supplement</div>
+          <div class="card-value" id="supplement-calcium">&mdash;</div>
+          <div class="card-unit" id="tablet-info">mg / 0 tablets</div>
         </div>
       </div>
 
+      <!-- Carbs & GI -->
+      <h3 class="section-title">Carbohydrates &amp; Glycemic Impact</h3>
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-label">Total Carbs</div>
+          <div class="card-value" id="total-carbs">&mdash;</div>
+          <div class="card-unit">g</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Fiber</div>
+          <div class="card-value" id="total-fiber">&mdash;</div>
+          <div class="card-unit">g</div>
+        </div>
+        <div class="card" id="net-carbs-card">
+          <div class="card-label">Net Carbs</div>
+          <div class="card-value" id="net-carbs">&mdash;</div>
+          <div class="card-unit">g</div>
+        </div>
+      </div>
+      <div id="gi-banner" class="gi-banner"></div>
+
+      <!-- Food details -->
+      <h3 class="section-title">Food Breakdown</h3>
+      <p class="section-hint">Tap a food to correct misidentifications</p>
       <div id="food-details" class="food-list"></div>
 
       <div class="disclaimer">
@@ -121,7 +146,7 @@
           <input type="text" id="search-foods" placeholder="Search foods...">
           <div class="table-scroll">
             <table id="food-table">
-              <thead><tr><th>Food</th><th>Oxalate (mg/100g)</th><th>Category</th></tr></thead>
+              <thead><tr><th>Food</th><th>Oxalate</th><th>Ca</th><th>Net Carbs</th><th>GI</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -129,6 +154,21 @@
       </details>
     </section>
   </main>
+
+  <!-- Correction modal -->
+  <div id="correction-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3>Correct Food Identification</h3>
+      <p id="modal-prompt" class="modal-prompt"></p>
+      <div id="modal-alternatives" class="modal-alternatives"></div>
+      <div class="modal-custom">
+        <input type="text" id="custom-food-input" placeholder="Or type a food name...">
+        <button id="custom-food-btn" class="primary-btn">Use This</button>
+      </div>
+      <button id="modal-cancel" class="secondary-btn full-width">Cancel</button>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

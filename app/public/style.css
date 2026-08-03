@@ -361,6 +361,38 @@ main {
   margin-top: 2px;
 }
 
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+
+.section-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  margin-top: -6px;
+}
+
+.gi-banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.card.warn {
+  border-color: var(--risk-moderate);
+  background: var(--risk-moderate-bg);
+}
+
+.card.warn .card-value { color: var(--risk-moderate); }
+
 /* Food items */
 .food-list {
   margin-bottom: 20px;
@@ -372,6 +404,12 @@ main {
   border-radius: 10px;
   padding: 14px;
   margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.food-item:active {
+  border-color: var(--primary);
 }
 
 .food-item-header {
@@ -497,6 +535,113 @@ details summary {
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   text-transform: capitalize;
+}
+
+.food-carbs {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.food-correction-hint {
+  font-size: 11px;
+  color: var(--primary);
+  margin-top: 6px;
+}
+
+/* Correction modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 24px 16px calc(16px + var(--safe-bottom));
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-content h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.modal-prompt {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.modal-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.alt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  text-transform: capitalize;
+  cursor: pointer;
+  min-height: 48px;
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+}
+
+.alt-btn:active {
+  background: var(--border);
+}
+
+.alt-btn .alt-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.modal-custom {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modal-custom input {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 48px;
+}
+
+.modal-custom button {
+  white-space: nowrap;
 }
 
 /* Small screens */
