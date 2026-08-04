@@ -31,16 +31,22 @@ function findFoodInDatabase(foodName) {
 function buildFoodResult(food) {
   const dbEntry = findFoodInDatabase(food.name);
   const w = food.weight_grams;
-  const oxPer100 = dbEntry ? dbEntry.oxalate_mg_per_100g : null;
+
+  const oxPer100 = dbEntry ? dbEntry.oxalate_mg_per_100g : (food.est_oxalate_mg_per_100g ?? null);
+  const caPer100 = dbEntry ? dbEntry.calcium_mg_per_100g : (food.est_calcium_mg_per_100g ?? null);
+  const carbsPer100 = dbEntry ? dbEntry.carbs_g_per_100g : (food.est_carbs_g_per_100g ?? null);
+  const fiberPer100 = dbEntry ? dbEntry.fiber_g_per_100g : (food.est_fiber_g_per_100g ?? null);
+  const gi = dbEntry ? dbEntry.glycemic_index : (food.est_glycemic_index ?? null);
+
   const estOx = oxPer100 !== null ? (oxPer100 * w) / 100 : null;
   const rangeLow = dbEntry ? (dbEntry.range[0] * w) / 100 : null;
   const rangeHigh = dbEntry ? (dbEntry.range[1] * w) / 100 : null;
-  const estCa = dbEntry ? (dbEntry.calcium_mg_per_100g * w) / 100 : null;
-  const totalCarbs = dbEntry ? (dbEntry.carbs_g_per_100g * w) / 100 : null;
-  const fiber = dbEntry ? (dbEntry.fiber_g_per_100g * w) / 100 : null;
+  const estCa = caPer100 !== null ? (caPer100 * w) / 100 : null;
+  const totalCarbs = carbsPer100 !== null ? (carbsPer100 * w) / 100 : null;
+  const fiber = fiberPer100 !== null ? (fiberPer100 * w) / 100 : null;
   const netCarbs = totalCarbs !== null && fiber !== null ? totalCarbs - fiber : null;
-  const gi = dbEntry ? dbEntry.glycemic_index : null;
   const gl = gi !== null && netCarbs !== null ? Math.round((gi * netCarbs) / 100) : null;
+  const aiEstimated = !dbEntry && (oxPer100 !== null || carbsPer100 !== null);
 
   return {
     name: food.name,
@@ -50,6 +56,7 @@ function buildFoodResult(food) {
     enclosed: food.enclosed || false,
     enclosed_in: food.enclosed_in || null,
     in_database: !!dbEntry,
+    ai_estimated: aiEstimated,
     database_name: dbEntry?.name || null,
     oxalate_per_100g: oxPer100,
     estimated_oxalate_mg: estOx !== null ? Math.round(estOx) : null,
@@ -62,6 +69,11 @@ function buildFoodResult(food) {
     glycemic_load: gl,
     category: dbEntry?.category || "unknown",
     note: dbEntry?.note || null,
+    est_oxalate_mg_per_100g: food.est_oxalate_mg_per_100g ?? null,
+    est_calcium_mg_per_100g: food.est_calcium_mg_per_100g ?? null,
+    est_carbs_g_per_100g: food.est_carbs_g_per_100g ?? null,
+    est_fiber_g_per_100g: food.est_fiber_g_per_100g ?? null,
+    est_glycemic_index: food.est_glycemic_index ?? null,
   };
 }
 
@@ -95,6 +107,14 @@ For each food item, provide:
 3. Your confidence level
 4. If confidence is NOT "high", provide 2-3 alternative identifications
 5. Whether the food is "enclosed" (filling hidden inside)
+6. Your best nutritional estimates per 100g of this food:
+   - est_oxalate_mg_per_100g (use 0 for negligible-oxalate foods like plain meats, dairy, most grains)
+   - est_calcium_mg_per_100g
+   - est_carbs_g_per_100g (total carbohydrates)
+   - est_fiber_g_per_100g
+   - est_glycemic_index (0-100 scale; use 0 for non-carb foods like meats)
+
+These estimates are used as a fallback when the food is not in our reference database, so always provide them.
 
 IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings, burritos, wraps, spring rolls, samosas, ravioli, calzones, stuffed peppers, sushi rolls, sandwiches, or any food where the filling is hidden:
 - Set "enclosed" to true
@@ -106,9 +126,9 @@ IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings,
 Respond ONLY in this exact JSON format, no other text:
 {
   "foods": [
-    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false },
-    { "name": "empanada shell", "weight_grams": 40, "confidence": "high", "alternatives": [], "enclosed": false },
-    { "name": "beef", "weight_grams": 70, "confidence": "low", "alternatives": ["chicken", "cheese", "beans"], "enclosed": true, "enclosed_in": "empanada" }
+    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 5, "est_calcium_mg_per_100g": 20, "est_carbs_g_per_100g": 45, "est_fiber_g_per_100g": 2, "est_glycemic_index": 65 },
+    { "name": "empanada shell", "weight_grams": 40, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 1, "est_calcium_mg_per_100g": 15, "est_carbs_g_per_100g": 52, "est_fiber_g_per_100g": 2, "est_glycemic_index": 70 },
+    { "name": "beef", "weight_grams": 70, "confidence": "low", "alternatives": ["chicken", "cheese", "beans"], "enclosed": true, "enclosed_in": "empanada", "est_oxalate_mg_per_100g": 0, "est_calcium_mg_per_100g": 12, "est_carbs_g_per_100g": 0, "est_fiber_g_per_100g": 0, "est_glycemic_index": 0 }
   ],
   "meal_description": "Brief description of the meal"
 }
@@ -139,7 +159,7 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1024,
+      max_tokens: 1500,
       messages: [
         {
           role: "user",

@@ -30,29 +30,36 @@ function saveMemory(mem) {
   localStorage.setItem(MEMORY_KEY, JSON.stringify(mem));
 }
 
-function rememberCorrection(originalName, correctedName) {
+function rememberCorrection(originalName, correctedName, estimates) {
   const mem = loadMemory();
   const key = originalName.toLowerCase().trim();
   if (key === correctedName.toLowerCase().trim()) {
     delete mem[key];
   } else {
-    mem[key] = correctedName;
+    mem[key] = { name: correctedName, estimates: estimates || null };
   }
   saveMemory(mem);
 }
 
 function recallCorrection(name) {
   const mem = loadMemory();
-  return mem[name.toLowerCase().trim()] || null;
+  const entry = mem[name.toLowerCase().trim()];
+  if (!entry) return null;
+  if (typeof entry === "string") return { name: entry, estimates: null };
+  return entry;
 }
 
 function applyMemoryToResults(foods) {
   let changed = false;
   const updated = foods.map((f) => {
-    const remembered = recallCorrection(f.name);
-    if (remembered && remembered.toLowerCase() !== f.name.toLowerCase()) {
+    const recalled = recallCorrection(f.name);
+    if (recalled && recalled.name.toLowerCase() !== f.name.toLowerCase()) {
       changed = true;
-      return { ...f, original_name: f.name, name: remembered, confidence: "high", auto_corrected: true };
+      const result = { ...f, original_name: f.name, name: recalled.name, confidence: "high", auto_corrected: true };
+      if (recalled.estimates) {
+        Object.assign(result, recalled.estimates);
+      }
+      return result;
     }
     return f;
   });
@@ -188,6 +195,11 @@ async function recalculateFromFoods(foods) {
     alternatives: f.alternatives || [],
     enclosed: f.enclosed || false,
     enclosed_in: f.enclosed_in || null,
+    est_oxalate_mg_per_100g: f.est_oxalate_mg_per_100g ?? null,
+    est_calcium_mg_per_100g: f.est_calcium_mg_per_100g ?? null,
+    est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
+    est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
+    est_glycemic_index: f.est_glycemic_index ?? null,
   }));
 
   const res = await fetch("/api/recalculate", {
@@ -316,10 +328,11 @@ function renderFoodList(foods) {
       </div>
       ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
-      ${!f.in_database ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
+      ${!f.in_database && f.ai_estimated ? `<div class="food-ai-estimated">AI estimated — not in reference database</div>` : ""}
+      ${!f.in_database && !f.ai_estimated ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
       ${autoCorrected}
       <div class="food-correction-hint">Tap to edit</div>
-      ${f.in_database ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
+      ${f.in_database || f.ai_estimated ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -386,7 +399,13 @@ async function applyCorrection(newName, newWeight) {
   const nameChanged = newName.toLowerCase() !== food.name.toLowerCase();
 
   if (rememberCheck.checked && nameChanged) {
-    rememberCorrection(originalName, newName);
+    rememberCorrection(originalName, newName, {
+      est_oxalate_mg_per_100g: food.est_oxalate_mg_per_100g,
+      est_calcium_mg_per_100g: food.est_calcium_mg_per_100g,
+      est_carbs_g_per_100g: food.est_carbs_g_per_100g,
+      est_fiber_g_per_100g: food.est_fiber_g_per_100g,
+      est_glycemic_index: food.est_glycemic_index,
+    });
   }
 
   const foodList = currentResults.foods.map((f, i) => ({
@@ -396,6 +415,11 @@ async function applyCorrection(newName, newWeight) {
     alternatives: i === correctionIndex ? [] : (f.alternatives || []),
     enclosed: i === correctionIndex ? false : (f.enclosed || false),
     enclosed_in: i === correctionIndex ? null : (f.enclosed_in || null),
+    est_oxalate_mg_per_100g: f.est_oxalate_mg_per_100g ?? null,
+    est_calcium_mg_per_100g: f.est_calcium_mg_per_100g ?? null,
+    est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
+    est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
+    est_glycemic_index: f.est_glycemic_index ?? null,
   }));
 
   closeModal();
