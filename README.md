@@ -30,16 +30,47 @@ Open http://localhost:3000
 
 ### Google credentials
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/) and
-   create a project.
-2. **APIs & Services → Enable APIs** → enable the **Google Docs API**.
-3. **APIs & Services → Credentials → Create Credentials → OAuth client ID**
-   - Application type: **Web application**
-   - Authorized redirect URI: `http://localhost:3000/auth/callback`
-4. Copy the Client ID and Client Secret into `.env`.
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are not values that exist
+anywhere yet — you create them, and they identify *this app* to Google so it
+can ask for permission to edit your Docs. They are tied to your Google
+account, so they cannot be copied from anywhere else.
 
-While the OAuth consent screen is in "Testing" mode, add your own Google
-account under **Audience → Test users**, or sign-in will be blocked.
+**1. Create a project.** [Google Cloud Console](https://console.cloud.google.com/)
+→ project dropdown in the top bar → **New Project**. Name it anything.
+
+**2. Enable the API.** **APIs & Services → Library** → search *Google Docs
+API* → **Enable**. Without this, sign-in succeeds but every request fails.
+
+**3. Set up the consent screen.** Under **APIs & Services → OAuth consent
+screen** (newer consoles call this **Google Auth Platform**):
+
+- User type **External** for a personal `@gmail.com` account; **Internal**
+  only if you have Google Workspace.
+- Fill in app name and your email where required.
+- Under **Audience → Test users**, add your own Google address. Skipping
+  this causes *"Access blocked: app has not completed verification"*.
+
+**4. Create the credentials.** **APIs & Services → Credentials → Create
+Credentials → OAuth client ID**:
+
+- Application type: **Web application**
+- Under **Authorized redirect URIs**, add one entry per environment. These
+  must match `BASE_URL` exactly — same scheme, no trailing slash:
+  - `http://localhost:3000/auth/callback` for local development
+  - `https://your-app.onrender.com/auth/callback` once deployed
+
+**5. Copy the two values** shown when you click **Create**:
+
+| Variable | Looks like | Where |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | `1234567890-abc...xyz.apps.googleusercontent.com` | Shown on the client's detail page any time |
+| `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` | Same page; if it is hidden, add a new secret |
+
+Put them in `.env` locally, or in your host's environment settings when
+deployed.
+
+Treat the client secret like a password: it belongs in `.env` or your host's
+environment settings, never in a commit. `.env` is already gitignored.
 
 ## Putting it on your iPhone and iPad
 
