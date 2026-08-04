@@ -49,14 +49,21 @@ somewhere and then install it to the home screen.
 ### 1. Deploy
 
 The repo includes `render.yaml` for [Render](https://render.com), which has a
-free tier:
+free tier.
 
-1. Push this repo to GitHub.
-2. In Render: **New → Blueprint**, point it at the repo. It reads
-   `render.yaml`.
-3. In the service's **Environment** tab, set `GOOGLE_CLIENT_ID`,
-   `GOOGLE_CLIENT_SECRET`, and `BASE_URL` (your full Render URL, e.g.
-   `https://chord-transposer.onrender.com`, no trailing slash).
+> **This project lives on the `claude/chord-transposer-app-xdm5df` branch, and
+> it is not the repository's default branch** — the default is a different
+> project. Whenever Render asks which branch to deploy, pick that one. The
+> `branch:` key in `render.yaml` pins it for Blueprint deploys.
+
+1. In Render: **New → Blueprint**, point it at this repo, and select the
+   branch above. It reads `render.yaml`.
+2. In the service's **Environment** tab, set `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`.
+3. Once the first deploy finishes, copy the service URL and set `BASE_URL` to
+   it (e.g. `https://chord-transposer.onrender.com`, no trailing slash).
+   Saving triggers a redeploy. `BASE_URL` cannot be set before the first
+   deploy because the URL is not known until Render assigns it.
 
 Any Node host works — Railway, Fly.io, a VPS. The only requirements are HTTPS
 and setting `BASE_URL`.

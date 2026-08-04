@@ -3,6 +3,9 @@ services:
     name: chord-transposer
     runtime: node
     plan: free
+    # This repo keeps each project on its own branch, and the repo's default
+    # branch is a different project — so the branch must be pinned explicitly.
+    branch: claude/chord-transposer-app-xdm5df
     buildCommand: npm install
     startCommand: npm start
     envVars:
