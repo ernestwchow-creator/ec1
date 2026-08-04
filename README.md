@@ -1,7 +1,7 @@
 # Chord Transposer
 
 Transpose chord charts in your Google Docs. Find a chart by pasting a Doc URL
-or by searching your Drive, pick how many semitones to move, preview the
+or by picking it from Drive, choose how many semitones to move, preview the
 result, then either append the transposed chart to the same document or save a
 new copy in the new key.
 
@@ -48,8 +48,14 @@ account, so they cannot be copied from anywhere else.
 **1. Create a project.** [Google Cloud Console](https://console.cloud.google.com/)
 → project dropdown in the top bar → **New Project**. Name it anything.
 
-**2. Enable the API.** **APIs & Services → Library** → search *Google Docs
-API* → **Enable**. Without this, sign-in succeeds but every request fails.
+**2. Enable the APIs.** **APIs & Services → Library**, then enable all three:
+
+- **Google Docs API** — reading and writing charts
+- **Google Drive API** — creating the transposed copy
+- **Google Picker API** — the "Browse Google Drive" button
+
+Sign-in succeeds without these, and then requests fail with a 403 whose real
+meaning is "this API is switched off", so enable them up front.
 
 **3. Set up the consent screen.** Under **APIs & Services → OAuth consent
 screen** (newer consoles call this **Google Auth Platform**):
@@ -79,6 +85,18 @@ Credentials → OAuth client ID**:
 Put them in `.env` locally, or in your host's environment settings when
 deployed.
 
+**6. Create an API key** for the Picker (the "Browse Google Drive" button).
+**Credentials → Create Credentials → API key**. Restrict it to the **Picker
+API**, and under *Application restrictions* limit it to your app's domain.
+Set it as `GOOGLE_API_KEY`.
+
+Optionally set `GOOGLE_PROJECT_NUMBER` to your Cloud project *number* (from the
+console's project settings, not the project ID). Picker uses it to associate
+picked files with this app.
+
+Without `GOOGLE_API_KEY` the browse button is simply hidden; pasting a URL
+still works.
+
 Treat the client secret like a password: it belongs in `.env` or your host's
 environment settings, never in a commit. `.env` is already gitignored.
 
@@ -99,8 +117,9 @@ free tier.
 
 1. In Render: **New → Blueprint**, point it at this repo, and select the
    branch above. It reads `render.yaml`.
-2. In the service's **Environment** tab, set `GOOGLE_CLIENT_ID` and
-   `GOOGLE_CLIENT_SECRET`.
+2. In the service's **Environment** tab, set `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`, and `GOOGLE_API_KEY` (plus the optional
+   `GOOGLE_PROJECT_NUMBER`).
 3. Once the first deploy finishes, copy the service URL and set `BASE_URL` to
    it (e.g. `https://chord-transposer.onrender.com`, no trailing slash).
    Saving triggers a redeploy. `BASE_URL` cannot be set before the first
@@ -151,7 +170,7 @@ native app.
 | --- | --- |
 | `server.js` | Express server, Google OAuth, API routes |
 | `src/transpose.js` | Chord parsing, transposition, chart detection |
-| `src/docs.js` | Google Docs and Drive: search, read, append, copy, rewrite |
+| `src/docs.js` | Google Docs and Drive: read, append, copy, rewrite in place |
 | `src/session.js` | Encrypted cookie session |
 | `test-session.js`, `test-replace.js` | Tests (`npm test`) |
 | `public/index.html` | Front end with live transposition preview |
@@ -161,19 +180,28 @@ native app.
 
 ## Scopes and re-authorizing
 
-The app requests three OAuth scopes:
+The app requests two OAuth scopes:
 
 | Scope | Why |
 | --- | --- |
 | `documents` | Read the chart and write the transposed one back |
-| `drive.readonly` | Search your documents by name in the Drive browser |
-| `drive.file` | Create the transposed copy — grants access only to files this app creates, not the rest of your Drive |
+| `drive.file` | Create the transposed copy, and reach files you hand over through the Picker |
 
-Drive browsing and copying were added after the first release, so a sign-in
-from before then holds a token without the Drive scopes. The app detects this:
-Drive features stay disabled and a **Reconnect Google** link appears. Signing
-in again grants the new scopes. Appending to a document keeps working
-throughout.
+There is deliberately no `drive.readonly`. That is a **restricted** scope:
+Google will not issue it to an app whose publishing status is *In production*
+without formal verification, so browsing built on it breaks the moment you
+publish. The Google Picker avoids the problem — you choose a file in Google's
+own UI, which grants this app access to that one file under `drive.file`. No
+restricted scope, no verification, and the app never gains visibility of the
+rest of your Drive.
+
+Copying was added after the first release, so a sign-in from before then holds
+a token without `drive.file`. The app detects this, disables that mode, and
+shows a **Reconnect Google** link. Appending keeps working throughout.
+
+Picker runs in the browser and is handed your access token, which is inherent
+to how it works. The token goes only to your own authenticated session and
+carries just the two scopes above.
 
 ## Sessions
 
@@ -221,6 +249,12 @@ Common mismatches: `http` instead of `https`, a trailing slash, a missing
 If you open `/auth` from an origin that disagrees with `BASE_URL`, the app now
 detects it first and shows both values along with the exact string to
 register, instead of handing you Google's generic error.
+
+**A Drive action fails with 403**
+Most often the relevant API is switched off rather than a permission problem.
+Enable **Google Drive API** and **Google Picker API** under APIs & Services →
+Library, wait a minute, and retry. The app now reports Google's own reason, so
+the message will say which case it is.
 
 **`Error 403: access_denied` — "can only be accessed by developer-approved testers"**
 The consent screen is in *Testing* mode and your account is not on the tester

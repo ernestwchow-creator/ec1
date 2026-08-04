@@ -139,7 +139,6 @@
       border: 2px solid #ddd;
     }
     .btn.secondary:active { background: #f0edff; border-color: #6c5ce7; }
-    .btn.secondary.open { border-color: #6c5ce7; background: #f0edff; }
 
     #reauth-hint { font-size: 0.85rem; color: #777; }
     #reauth-hint a { color: #6c5ce7; }
@@ -152,58 +151,6 @@
       margin-top: 0.75rem;
       flex-wrap: wrap;
     }
-
-    .browser {
-      margin-top: 0.85rem;
-      border: 2px solid #eee;
-      border-radius: 10px;
-      padding: 0.85rem;
-      background: #fafafe;
-    }
-
-    .browser input {
-      width: 100%;
-      min-height: 48px;
-      padding: 0.7rem 1rem;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      font-size: 16px;
-      outline: none;
-      -webkit-appearance: none;
-      appearance: none;
-    }
-    .browser input:focus { border-color: #6c5ce7; }
-
-    .drive-results {
-      margin-top: 0.7rem;
-      max-height: 20rem;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-    }
-
-    .drive-item {
-      display: block;
-      width: 100%;
-      text-align: left;
-      background: #fff;
-      border: 1px solid #e6e6ee;
-      border-radius: 8px;
-      padding: 0.7rem 0.85rem;
-      margin-bottom: 0.4rem;
-      cursor: pointer;
-      font-size: 0.95rem;
-      min-height: 48px;
-      touch-action: manipulation;
-      -webkit-appearance: none;
-      appearance: none;
-      color: #1a1a2e;
-    }
-    .drive-item:active { border-color: #6c5ce7; background: #f0edff; }
-    .drive-item .name { font-weight: 500; }
-    .drive-item .meta { display: block; font-size: 0.78rem; color: #999; margin-top: 0.15rem; }
-
-    .drive-empty { color: #888; font-size: 0.9rem; padding: 0.6rem 0.2rem; }
 
     .mode-choice {
       display: grid;
@@ -499,15 +446,10 @@
         </div>
 
         <div class="or-row">
-          <button class="btn secondary" id="browse-btn" onclick="toggleBrowser()">
+          <button class="btn secondary" id="browse-btn" onclick="openPicker()">
             Browse Google Drive
           </button>
           <span id="reauth-hint"></span>
-        </div>
-
-        <div id="browser" class="browser hidden">
-          <input type="text" id="drive-search" placeholder="Search your documents by name..." />
-          <div id="drive-results" class="drive-results"></div>
         </div>
 
         <div id="load-error"></div>
@@ -618,15 +560,15 @@
       selectedChart: 0,
       semitones: 0,
       useFlats: false,
-      canSearch: false,
+      canBrowse: false,
       canCopy: false,
       scopes: null
     };
 
     async function checkAuth() {
       const res = await fetch('/api/me');
-      const { authenticated, canSearch, canCopy, scopes } = await res.json();
-      state.canSearch = !!canSearch;
+      const { authenticated, canBrowse, canCopy, scopes } = await res.json();
+      state.canBrowse = !!canBrowse;
       state.canCopy = !!canCopy;
       state.scopes = scopes;
       applyDriveAvailability();
@@ -650,7 +592,7 @@
       const copyOption = document.getElementById('mode-copy-option');
       const copyRadio = copyOption.querySelector('input');
 
-      browseBtn.disabled = !state.canSearch;
+      browseBtn.disabled = !state.canBrowse;
       copyRadio.disabled = !state.canCopy;
       copyOption.classList.toggle('disabled', !state.canCopy);
 
@@ -662,22 +604,24 @@
         document.querySelector('input[name="mode"][value="append"]').checked = true;
       }
 
-      if (state.canSearch && state.canCopy) {
-        hint.innerHTML = '';
-      } else {
+      // Browsing and copying fail for unrelated reasons — a missing server API
+      // key versus a scope Google did not grant — so they get separate wording.
+      const notes = [];
+      if (!state.canBrowse) {
+        notes.push('Browsing needs <code>GOOGLE_API_KEY</code> set on the server');
+      }
+      if (!state.canCopy) {
         const missing = ((state.scopes && state.scopes.missing) || [])
           .map(s => s.replace('https://www.googleapis.com/auth/', ''));
-        // Say which feature is unavailable rather than lumping them together —
-        // searching and copying can be granted independently.
-        const lacking = [!state.canSearch && 'browse Drive', !state.canCopy && 'save copies']
-          .filter(Boolean).join(' and ');
-        hint.innerHTML =
-          '<a href="/auth">Reconnect Google</a> to ' + lacking +
+        notes.push('<a href="/auth">Reconnect Google</a> to save copies' +
           (missing.length
-            ? ' &middot; <span class="hint-detail">not granted: ' + escapeHtml(missing.join(', ')) + '</span>'
-            : '') +
-          ' &middot; <a href="/auth/status">details</a>';
+            ? ' <span class="hint-detail">(not granted: ' + escapeHtml(missing.join(', ')) + ')</span>'
+            : ''));
       }
+      hint.innerHTML = notes.length
+        ? notes.join(' &middot; ') + ' &middot; <a href="/auth/status">details</a>'
+        : '';
+
       updateModeUI();
     }
 
@@ -693,67 +637,73 @@
         : 'Add transposed chart to document';
     }
 
-    let searchTimer = null;
+    let pickerLoaded = null;
 
-    function toggleBrowser() {
-      const browser = document.getElementById('browser');
+    // Loaded on demand: most visits paste a URL and never open the Picker.
+    function loadPickerApi() {
+      if (pickerLoaded) return pickerLoaded;
+      pickerLoaded = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://apis.google.com/js/api.js';
+        s.onload = () => gapi.load('picker', { callback: resolve, onerror: reject });
+        s.onerror = () => reject(new Error('Could not load the Google Picker.'));
+        document.head.appendChild(s);
+      }).catch((e) => { pickerLoaded = null; throw e; });
+      return pickerLoaded;
+    }
+
+    async function openPicker() {
+      const errDiv = document.getElementById('load-error');
       const btn = document.getElementById('browse-btn');
-      const opening = browser.classList.contains('hidden');
-      browser.classList.toggle('hidden', !opening);
-      btn.classList.toggle('open', opening);
-      if (opening) {
-        runDriveSearch('');
-        // Opening the keyboard immediately on a phone hides the results.
-        if (window.innerWidth > 700) document.getElementById('drive-search').focus();
-      }
-    }
+      errDiv.innerHTML = '';
+      btn.disabled = true;
 
-    async function runDriveSearch(query) {
-      const results = document.getElementById('drive-results');
-      results.innerHTML = '<div class="drive-empty">Searching...</div>';
       try {
-        const res = await fetch('/api/drive/search?q=' + encodeURIComponent(query || ''));
-        const data = await res.json();
+        const res = await fetch('/api/picker-config');
+        const cfg = await res.json();
 
+        if (res.status === 401) {
+          await checkAuth();
+          errDiv.innerHTML = '<div class="message error">' + escapeHtml(cfg.error) + '</div>';
+          return;
+        }
         if (!res.ok) {
-          results.innerHTML = '<div class="drive-empty">' + escapeHtml(data.error) +
-            (data.needsReauth ? ' <a href="/auth">Reconnect</a>' : '') + '</div>';
+          errDiv.innerHTML = '<div class="message error">' + escapeHtml(cfg.error) + '</div>';
           return;
         }
 
-        if (!data.files.length) {
-          results.innerHTML = '<div class="drive-empty">No documents found.</div>';
-          return;
-        }
+        await loadPickerApi();
 
-        results.innerHTML = data.files.map(f =>
-          '<button class="drive-item" onclick="loadById(\'' + escapeAttr(f.id) + '\')">' +
-          '<span class="name">' + escapeHtml(f.name) + '</span>' +
-          '<span class="meta">' + formatDate(f.modifiedTime) + '</span>' +
-          '</button>'
-        ).join('');
+        const view = new google.picker.DocsView(google.picker.ViewId.DOCUMENTS)
+          .setMimeTypes('application/vnd.google-apps.document')
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(false);
+
+        const builder = new google.picker.PickerBuilder()
+          .setOAuthToken(cfg.accessToken)
+          .setDeveloperKey(cfg.apiKey)
+          .addView(view)
+          .setTitle('Choose a chord chart')
+          .setCallback((data) => {
+            if (data.action === google.picker.Action.PICKED && data.docs && data.docs.length) {
+              loadById(data.docs[0].id);
+            }
+          });
+
+        // Ties picked files to this app so drive.file access covers them.
+        if (cfg.appId) builder.setAppId(cfg.appId);
+
+        builder.build().setVisible(true);
       } catch (e) {
-        results.innerHTML = '<div class="drive-empty">Search failed. Please try again.</div>';
+        errDiv.innerHTML = '<div class="message error">' +
+          escapeHtml(e.message || 'Could not open the Google Picker.') + '</div>';
+      } finally {
+        btn.disabled = false;
       }
-    }
-
-    function formatDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (isNaN(d)) return '';
-      return 'Edited ' + d.toLocaleDateString(undefined, {
-        year: 'numeric', month: 'short', day: 'numeric'
-      });
-    }
-
-    function escapeAttr(s) {
-      return String(s).replace(/[^a-zA-Z0-9_-]/g, '');
     }
 
     function loadById(id) {
       document.getElementById('doc-url').value = id;
-      document.getElementById('browser').classList.add('hidden');
-      document.getElementById('browse-btn').classList.remove('open');
       loadDocument();
     }
 
@@ -966,22 +916,6 @@
     // pasting is the normal path, so select-all on focus makes replacing easy.
     document.getElementById('doc-url').addEventListener('focus', (e) => {
       if (e.target.value) e.target.select();
-    });
-
-    // Debounced so typing does not fire a Drive query per keystroke.
-    document.getElementById('drive-search').addEventListener('input', (e) => {
-      clearTimeout(searchTimer);
-      const q = e.target.value;
-      searchTimer = setTimeout(() => runDriveSearch(q), 300);
-    });
-
-    document.getElementById('drive-search').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.target.blur();
-        clearTimeout(searchTimer);
-        runDriveSearch(e.target.value);
-      }
     });
 
     if ('serviceWorker' in navigator) {

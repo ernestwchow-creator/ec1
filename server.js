@@ -5,7 +5,7 @@ const path = require('path');
 const { google } = require('googleapis');
 const {
   extractDocId, extractTables, readDocument, appendTransposedChart,
-  searchDocuments, copyDocument, replaceChart
+  copyDocument, replaceChart
 } = require('./src/docs');
 const {
   isChordTable, isRomanNumeralTable, transposeCellText,
@@ -37,28 +37,24 @@ const SCOPE_BASE = 'https://www.googleapis.com/auth/';
 const SCOPES = [
   // Read the chart and write the transposed one back.
   `${SCOPE_BASE}documents`,
-  // Search the user's documents by name. Read-only on purpose.
-  `${SCOPE_BASE}drive.readonly`,
-  // Create the transposed copy. Grants access only to files this app creates,
-  // not to the rest of the user's Drive.
+  // Create the transposed copy, and reach files the user hands over through the
+  // Picker. Deliberately not drive.readonly: that is a *restricted* scope
+  // requiring Google verification, whereas Picker grants per-file access on top
+  // of drive.file with no restricted scope at all.
   `${SCOPE_BASE}drive.file`
 ];
+
+// Picker runs in the browser and needs a Google API key of its own.
+const PICKER_API_KEY = process.env.GOOGLE_API_KEY || '';
+// Optional: the Cloud project number. Picker uses it to associate picked files
+// with this app for drive.file access.
+const PICKER_APP_ID = process.env.GOOGLE_PROJECT_NUMBER || '';
 
 // Tokens issued before the Drive scopes were added still work for appending,
 // so rather than forcing everyone to re-authorize we check what was actually
 // granted and let the UI offer a reconnect only where it is needed.
 function grantedScopes(tokens) {
   return new Set(String(tokens.scope || '').split(/\s+/).filter(Boolean));
-}
-
-// The two Drive features have different scope requirements and, crucially,
-// different standing with Google: drive.readonly is a *restricted* scope that a
-// published-but-unverified app cannot obtain, whereas drive.file is not
-// restricted and is granted normally. Gating both features on both scopes would
-// disable copying whenever search is unavailable, for no reason.
-function canSearchDrive(tokens) {
-  const g = grantedScopes(tokens);
-  return g.has(SCOPE_BASE + 'drive') || g.has(SCOPE_BASE + 'drive.readonly');
 }
 
 function canCreateCopy(tokens) {
@@ -117,6 +113,44 @@ function getAuthedClient(req, res) {
   });
 
   return client;
+}
+
+// A 403 from Google means several very different things, and flattening them
+// into "access refused" sends people to re-authorize when the real problem is
+// an API left disabled in the Cloud project. Pull out Google's own reason.
+function classifyForbidden(err) {
+  const data = err && err.response && err.response.data && err.response.data.error;
+  const reasons = new Set();
+  const collect = (arr) => {
+    if (Array.isArray(arr)) arr.forEach(e => e && e.reason && reasons.add(e.reason));
+  };
+  collect(err && err.errors);
+  collect(data && data.details);
+  if (data && data.status) reasons.add(data.status);
+
+  const message = (data && data.message) || (err && err.message) || '';
+
+  if (reasons.has('SERVICE_DISABLED') || reasons.has('accessNotConfigured') ||
+      /has not been used in project|is disabled/i.test(message)) {
+    return {
+      kind: 'apiDisabled',
+      error: 'The Google Drive API is not enabled in your Google Cloud project. ' +
+        'Enable it under APIs & Services → Library → Google Drive API, wait a minute, then try again.',
+      detail: message
+    };
+  }
+
+  if (reasons.has('insufficientPermissions') || reasons.has('ACCESS_TOKEN_SCOPE_INSUFFICIENT') ||
+      /insufficient (authentication )?scopes?/i.test(message)) {
+    return {
+      kind: 'scope',
+      error: 'This needs a permission that was not granted. Please reconnect your Google account.',
+      needsReauth: true,
+      detail: message
+    };
+  }
+
+  return { kind: 'other', error: message || 'Google refused the request.', detail: message };
 }
 
 // A revoked or expired refresh token can only be fixed by signing in again,
@@ -242,9 +276,9 @@ app.get('/api/me', (req, res) => {
   const tokens = readTokens(req, SECRET);
   res.json({
     authenticated: !!tokens,
-    // Drives whether the UI offers Drive browsing and the "save as a copy"
-    // mode, or prompts to reconnect for the newer scopes.
-    canSearch: tokens ? canSearchDrive(tokens) : false,
+    // Browsing needs an API key on the server; copying needs the drive.file
+    // scope from Google. They fail for different reasons, so report separately.
+    canBrowse: !!PICKER_API_KEY,
     canCopy: tokens ? canCreateCopy(tokens) : false,
     scopes: tokens ? scopeReport(tokens) : null
   });
@@ -274,41 +308,43 @@ app.get('/auth/status', (req, res) => {
     `<h2>Missing</h2>` +
     (missing.length
       ? `<ul>${missing.map(s => `<li><code>${escapeHtml(short(s))}</code></li>`).join('')}</ul>` +
-        `<p>If <code>drive.readonly</code> is missing while the others are present, ` +
-        `it is a <b>restricted</b> scope: Google refuses to issue it to an app whose ` +
-        `publishing status is <i>In production</i> without verification. Setting the ` +
-        `OAuth consent screen back to <i>Testing</i> (and listing yourself as a test ` +
-        `user) allows it.</p>` +
-        `<p>If several are missing, the consent screen's per-permission checkboxes ` +
-        `were likely left unticked — reconnect and accept all of them.</p>`
+        `<p>Reconnect and accept every permission the consent screen offers — it ` +
+        `presents them as separate checkboxes, and leaving one unticked withholds ` +
+        `that scope.</p>`
       : `<p>Nothing missing.</p>`) +
     `<p><a href="/auth">Reconnect Google</a> &middot; <a href="/">Back to the app</a></p>`,
     'Google connection'
   ));
 });
 
-app.get('/api/drive/search', async (req, res) => {
+// Picker runs client-side and needs the user's access token plus an API key.
+// Handing the access token to the page is inherent to how Picker works; it is
+// the signed-in user's own token, delivered only to that authenticated session,
+// and it carries just the documents and drive.file scopes.
+app.get('/api/picker-config', async (req, res) => {
   const tokens = readTokens(req, SECRET);
   if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
-  if (!canSearchDrive(tokens)) {
-    return res.status(403).json({
-      error: 'Drive access has not been granted yet.',
-      needsReauth: true
+
+  if (!PICKER_API_KEY) {
+    return res.status(503).json({
+      error: 'Browsing needs a Google API key. Set GOOGLE_API_KEY in the server environment ' +
+        '(Google Cloud console → APIs & Services → Credentials → Create credentials → API key), then redeploy.',
+      needsConfig: true
     });
   }
 
   const auth = getAuthedClient(req, res);
   try {
-    const files = await searchDocuments(auth, req.query.q);
-    res.json({ files });
+    // Forces a refresh when the stored access token has expired, so Picker is
+    // never handed a dead token.
+    const { token } = await auth.getAccessToken();
+    if (!token) throw new Error('Could not obtain an access token');
+    res.json({ accessToken: token, apiKey: PICKER_API_KEY, appId: PICKER_APP_ID || undefined });
   } catch (err) {
-    console.error('Drive search error:', err.message);
+    console.error('Picker config error:', err.message);
     if (isAuthFailure(err)) {
       clearTokens(res, IS_PROD);
       return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
-    }
-    if (err.code === 403) {
-      return res.status(403).json({ error: 'Drive access was refused. Try reconnecting.', needsReauth: true });
     }
     res.status(500).json({ error: err.message });
   }
@@ -431,10 +467,9 @@ app.post('/api/transpose', async (req, res) => {
       return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
     }
     if (err.code === 403) {
-      return res.status(403).json({
-        error: 'Google refused the request. If you are creating a copy, try reconnecting to grant Drive access.',
-        needsReauth: true
-      });
+      const info = classifyForbidden(err);
+      console.error('Forbidden:', info.kind, '-', info.detail);
+      return res.status(403).json({ error: info.error, needsReauth: info.needsReauth });
     }
     res.status(500).json({ error: err.message });
   }

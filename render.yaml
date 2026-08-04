@@ -14,6 +14,13 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # API key for the Google Picker ("Browse Google Drive"). Optional —
+      # without it the browse button is hidden and pasting a URL still works.
+      - key: GOOGLE_API_KEY
+        sync: false
+      # Optional Cloud project number, used by Picker for drive.file access.
+      - key: GOOGLE_PROJECT_NUMBER
+        sync: false
       # Must match your Render URL, e.g. https://chord-transposer.onrender.com
       - key: BASE_URL
         sync: false

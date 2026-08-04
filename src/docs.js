@@ -1,7 +1,5 @@
 const { google } = require('googleapis');
 
-const DOC_MIME = 'application/vnd.google-apps.document';
-
 function extractDocId(url) {
   const trimmed = String(url || '').trim();
   const match = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -9,28 +7,6 @@ function extractDocId(url) {
   // Accept a bare file ID, which is what the Drive browser hands us.
   if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed;
   return null;
-}
-
-// Searches the user's Docs by title. An empty query lists the most recently
-// modified ones, which is the common case when reaching for a chart.
-async function searchDocuments(auth, query) {
-  const drive = google.drive({ version: 'v3', auth });
-  const clauses = [`mimeType = '${DOC_MIME}'`, 'trashed = false'];
-
-  const term = String(query || '').trim();
-  if (term) {
-    // Single quotes and backslashes would otherwise break out of the literal.
-    clauses.push(`name contains '${term.replace(/[\\']/g, '\\$&')}'`);
-  }
-
-  const res = await drive.files.list({
-    q: clauses.join(' and '),
-    orderBy: 'modifiedTime desc',
-    pageSize: 25,
-    fields: 'files(id,name,modifiedTime)',
-    spaces: 'drive'
-  });
-  return res.data.files || [];
 }
 
 async function copyDocument(auth, fileId, newName) {
@@ -273,5 +249,5 @@ async function replaceChart(auth, documentId, isTargetTable, chartIndex, newData
 
 module.exports = {
   extractDocId, extractTables, readDocument, appendTransposedChart,
-  searchDocuments, copyDocument, replaceChart, tableToData
+  copyDocument, replaceChart, tableToData
 };
