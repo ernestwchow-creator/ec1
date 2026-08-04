@@ -524,6 +524,15 @@
         const res = await fetch('/api/document?url=' + encodeURIComponent(url));
         const data = await res.json();
 
+        if (res.status === 401) {
+          // Sign-in expired or was revoked; drop back to the sign-in screen.
+          await checkAuth();
+          document.getElementById('login-section').insertAdjacentHTML(
+            'beforeend', '<div class="message error">' + escapeHtml(data.error) + '</div>'
+          );
+          return;
+        }
+
         if (!res.ok) {
           errDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) + '</div>';
           return;
@@ -664,6 +673,12 @@
           })
         });
         const data = await res.json();
+
+        if (res.status === 401) {
+          await checkAuth();
+          msgDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) + '</div>';
+          return;
+        }
 
         if (data.success) {
           const docUrl = 'https://docs.google.com/document/d/' + state.doc.documentId;

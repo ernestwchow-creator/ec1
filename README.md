@@ -69,8 +69,8 @@ Any Node host works — Railway, Fly.io, a VPS. The only requirements are HTTPS
 and setting `BASE_URL`.
 
 > On Render's free tier the service sleeps after inactivity, so the first
-> request after a break takes ~30 seconds to wake up. You will also be signed
-> out when it sleeps, since sessions are kept in memory.
+> request after a break takes ~30 seconds to wake up. You stay signed in
+> across sleeps and redeploys (see [Sessions](#sessions)).
 
 ### 2. Add the deployed URL to Google
 
@@ -116,9 +116,42 @@ native app.
 | `public/sw.js` | Service worker caching the app shell |
 | `render.yaml` | Deployment blueprint for Render |
 
+## Sessions
+
+Sign-in survives server restarts, sleeps and redeploys. There is no database:
+the Google OAuth tokens are held in a cookie encrypted with AES-256-GCM using a
+key derived from `SESSION_SECRET`, and the server keeps no state at all.
+
+- The cookie is `httpOnly` (JavaScript cannot read it), `secure` over https,
+  and `sameSite=lax`.
+- The refresh token is encrypted, not merely signed, so it is unreadable at
+  rest in the browser. GCM's authentication tag makes any tampering fail
+  closed.
+- Changing `SESSION_SECRET` invalidates existing sessions and requires signing
+  in again. On Render it is generated once and then persists, so redeploys
+  keep you signed in.
+- If Google revokes the token, the app clears the cookie and returns you to the
+  sign-in screen with an explanation.
+
+## Troubleshooting
+
+**`Error 400: invalid_request — Missing required parameter: client_id`**
+`GOOGLE_CLIENT_ID` is not set in the environment the server is actually running
+in. On Render, set it under **Environment** and redeploy; locally, check
+`.env`. The app now detects this before redirecting and shows which variable is
+missing.
+
+**`Error 400: redirect_uri_mismatch`**
+`BASE_URL` and the **Authorized redirect URI** in Google Cloud disagree. They
+must match exactly, including `https://` and with no trailing slash on
+`BASE_URL`.
+
+**Signed out every 7 days**
+The OAuth consent screen is still in *Testing* mode, where Google expires
+refresh tokens after 7 days. Publish the app (it stays private to you) to stop
+that.
+
 ## Notes
 
 - The app requests the `documents` scope because it needs to write the
   transposed chart back into your Doc.
-- Nothing is stored server-side; tokens live in an in-memory session for the
-  life of the process.

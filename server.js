@@ -1,12 +1,14 @@
 require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const path = require('path');
+const { google } = require('googleapis');
 const { extractDocId, extractTables, readDocument, appendTransposedChart } = require('./src/docs');
 const {
   isChordTable, isRomanNumeralTable, transposeCellText,
-  detectKeyFromChart, defaultUseFlats, transposeNote
+  detectKeyFromChart, transposeNote
 } = require('./src/transpose');
+const { readTokens, writeTokens, clearTokens } = require('./src/session');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,28 +18,17 @@ const PORT = process.env.PORT || 3000;
 // must exactly match an "Authorized redirect URI" in the Google Cloud console.
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const IS_PROD = BASE_URL.startsWith('https://');
+const SECRET = process.env.SESSION_SECRET || 'chord-transposer-dev';
 
 // Hosting platforms terminate TLS at a proxy; without this Express sees http and
-// refuses to set the secure session cookie.
+// refuses to set the secure cookie.
 app.set('trust proxy', 1);
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'chord-transposer-dev',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: IS_PROD,
-    httpOnly: true,
-    // 'lax' still sends the cookie on the top-level redirect back from Google.
-    sameSite: 'lax',
-    maxAge: 30 * 24 * 60 * 60 * 1000
-  }
-}));
 
 function getOAuth2Client() {
-  const { google } = require('googleapis');
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -45,9 +36,53 @@ function getOAuth2Client() {
   );
 }
 
+// Builds an authenticated client from the cookie. googleapis silently exchanges
+// the refresh token for a new access token when the old one expires; the
+// 'tokens' event lets us write the refreshed values back so that exchange only
+// happens once per hour rather than on every request.
+function getAuthedClient(req, res) {
+  const tokens = readTokens(req, SECRET);
+  if (!tokens) return null;
+
+  const client = getOAuth2Client();
+  client.setCredentials(tokens);
+
+  client.on('tokens', (fresh) => {
+    // A refresh response omits refresh_token, so preserve the stored one.
+    const merged = { ...tokens, ...fresh };
+    if (!merged.refresh_token) merged.refresh_token = tokens.refresh_token;
+    if (!res.headersSent) writeTokens(res, merged, SECRET, IS_PROD);
+  });
+
+  return client;
+}
+
+// A revoked or expired refresh token can only be fixed by signing in again,
+// so drop the cookie and let the UI fall back to the sign-in screen.
+function isAuthFailure(err) {
+  const reason = err && (err.response?.data?.error || err.message || '');
+  return typeof reason === 'string' &&
+    (reason.includes('invalid_grant') || reason.includes('invalid_token'));
+}
+
 app.get('/auth', (req, res) => {
+  // Without credentials the generated URL omits client_id and Google answers
+  // with an opaque "Missing required parameter: client_id" page. Say what is
+  // actually wrong instead.
+  const missing = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'].filter(k => !process.env[k]);
+  if (missing.length) {
+    return res.status(500).send(
+      `<h1>Configuration error</h1>` +
+      `<p>Not set on the server: <code>${missing.join('</code>, <code>')}</code></p>` +
+      `<p>Set ${missing.length > 1 ? 'them' : 'it'} in your host's environment settings ` +
+      `(or in <code>.env</code> locally) and redeploy.</p>`
+    );
+  }
+
   const oauth2Client = getOAuth2Client();
   const url = oauth2Client.generateAuthUrl({
+    // 'offline' + forced consent guarantees Google returns a refresh token,
+    // which is the credential that makes the session durable.
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/documents'],
     prompt: 'consent'
@@ -59,7 +94,7 @@ app.get('/auth/callback', async (req, res) => {
   try {
     const oauth2Client = getOAuth2Client();
     const { tokens } = await oauth2Client.getToken(req.query.code);
-    req.session.tokens = tokens;
+    writeTokens(res, tokens, SECRET, IS_PROD);
     res.redirect('/');
   } catch (err) {
     console.error('Auth error:', err.message);
@@ -68,16 +103,17 @@ app.get('/auth/callback', async (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => {
-  req.session.destroy();
+  clearTokens(res, IS_PROD);
   res.redirect('/');
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ authenticated: !!req.session.tokens });
+  res.json({ authenticated: !!readTokens(req, SECRET) });
 });
 
 app.get('/api/document', async (req, res) => {
-  if (!req.session.tokens) return res.status(401).json({ error: 'Not authenticated' });
+  const auth = getAuthedClient(req, res);
+  if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'Missing url parameter' });
@@ -86,7 +122,7 @@ app.get('/api/document', async (req, res) => {
   if (!docId) return res.status(400).json({ error: 'Invalid Google Doc URL. Expected a URL like https://docs.google.com/document/d/...' });
 
   try {
-    const doc = await readDocument(req.session.tokens, docId);
+    const doc = await readDocument(auth, docId);
     const tables = extractTables(doc);
 
     const chordCharts = tables
@@ -106,6 +142,10 @@ app.get('/api/document', async (req, res) => {
     });
   } catch (err) {
     console.error('Document read error:', err.message);
+    if (isAuthFailure(err)) {
+      clearTokens(res, IS_PROD);
+      return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
+    }
     if (err.code === 404) return res.status(404).json({ error: 'Document not found. Check the URL and make sure you have access.' });
     if (err.code === 403) return res.status(403).json({ error: 'No access to this document. Make sure it is shared with your Google account.' });
     res.status(500).json({ error: err.message });
@@ -113,14 +153,15 @@ app.get('/api/document', async (req, res) => {
 });
 
 app.post('/api/transpose', async (req, res) => {
-  if (!req.session.tokens) return res.status(401).json({ error: 'Not authenticated' });
+  const auth = getAuthedClient(req, res);
+  if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
   const { documentId, chartIndex, semitones, useFlats } = req.body;
   if (!documentId) return res.status(400).json({ error: 'Missing documentId' });
   if (semitones === undefined || semitones === 0) return res.status(400).json({ error: 'Semitones must be non-zero' });
 
   try {
-    const doc = await readDocument(req.session.tokens, documentId);
+    const doc = await readDocument(auth, documentId);
     const tables = extractTables(doc);
     const chordCharts = tables.filter(t => isChordTable(t.data) && !isRomanNumeralTable(t.data));
 
@@ -139,11 +180,15 @@ app.post('/api/transpose', async (req, res) => {
     const direction = semitones > 0 ? '+' : '';
     const title = `Transposed to ${newKey} (${direction}${semitones} semitones from ${originalKey})`;
 
-    await appendTransposedChart(req.session.tokens, documentId, transposed, title);
+    await appendTransposedChart(auth, documentId, transposed, title);
 
     res.json({ success: true, title, transposedChart: transposed });
   } catch (err) {
     console.error('Transpose error:', err.message);
+    if (isAuthFailure(err)) {
+      clearTokens(res, IS_PROD);
+      return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -155,5 +200,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Base URL: ${BASE_URL}`);
   if (!process.env.GOOGLE_CLIENT_ID) {
     console.warn('WARNING: GOOGLE_CLIENT_ID is not set. Copy .env.example to .env and fill it in.');
+  }
+  if (IS_PROD && !process.env.SESSION_SECRET) {
+    console.warn('WARNING: SESSION_SECRET is not set. Sessions will not survive a restart.');
   }
 });

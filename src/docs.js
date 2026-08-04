@@ -1,14 +1,5 @@
 const { google } = require('googleapis');
 
-function createAuth(tokens) {
-  const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
-  );
-  auth.setCredentials(tokens);
-  return auth;
-}
-
 function extractDocId(url) {
   const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
@@ -52,14 +43,13 @@ function extractTables(doc) {
   return tables;
 }
 
-async function readDocument(tokens, documentId) {
-  const docs = google.docs({ version: 'v1', auth: createAuth(tokens) });
+async function readDocument(auth, documentId) {
+  const docs = google.docs({ version: 'v1', auth });
   const response = await docs.documents.get({ documentId });
   return response.data;
 }
 
-async function appendTransposedChart(tokens, documentId, chartData, title) {
-  const auth = createAuth(tokens);
+async function appendTransposedChart(auth, documentId, chartData, title) {
   const docs = google.docs({ version: 'v1', auth });
 
   let doc = await docs.documents.get({ documentId });
