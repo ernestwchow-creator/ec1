@@ -23,7 +23,26 @@
   <header>
     <h1>OxaCheck</h1>
     <p class="subtitle">Photograph your food. Estimate oxalate &amp; carbs. Get calcium guidance.</p>
+    <button id="settings-btn" class="icon-btn" aria-label="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
   </header>
+
+  <div id="settings-panel" class="panel hidden">
+    <label for="tablet-size-input">Calcium Tablet Size (mg)</label>
+    <div class="input-row">
+      <select id="tablet-size-input">
+        <option value="200">200 mg</option>
+        <option value="250">250 mg</option>
+        <option value="315" selected>315 mg (standard citrate)</option>
+        <option value="500">500 mg</option>
+        <option value="600">600 mg</option>
+        <option value="custom">Custom...</option>
+      </select>
+      <input type="number" id="tablet-size-custom" class="hidden" placeholder="mg" min="50" max="1500">
+    </div>
+    <p class="hint">Set this to match the calcium supplement tablets you use.</p>
+  </div>
 
   <div id="install-banner" class="install-banner hidden">
     <p>Add to Home Screen for the full app experience</p>
@@ -168,8 +187,22 @@
   <div id="correction-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
-      <h3>Correct Food Identification</h3>
+      <h3>Correct Food</h3>
       <p id="modal-prompt" class="modal-prompt"></p>
+
+      <div class="modal-weight">
+        <label for="weight-input">Estimated weight</label>
+        <div class="weight-row">
+          <button class="weight-adj" data-delta="-25">-25g</button>
+          <button class="weight-adj" data-delta="-10">-10</button>
+          <input type="number" id="weight-input" min="5" max="2000" step="5">
+          <span class="weight-unit">g</span>
+          <button class="weight-adj" data-delta="10">+10</button>
+          <button class="weight-adj" data-delta="25">+25g</button>
+        </div>
+      </div>
+
+      <label class="modal-section-label">Change food type</label>
       <div id="modal-alternatives" class="modal-alternatives"></div>
       <div class="modal-custom">
         <input type="text" id="custom-food-input" placeholder="Or type a food name...">
@@ -179,7 +212,10 @@
         <input type="checkbox" id="remember-check" checked>
         <span>Remember this correction for next time</span>
       </label>
-      <button id="modal-cancel" class="secondary-btn full-width">Cancel</button>
+      <div class="modal-actions">
+        <button id="modal-save-weight" class="primary-btn">Save Weight Only</button>
+        <button id="modal-cancel" class="secondary-btn">Cancel</button>
+      </div>
     </div>
   </div>
 

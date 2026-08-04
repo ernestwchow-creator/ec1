@@ -559,6 +559,85 @@ details summary {
   margin-top: 4px;
 }
 
+.modal-weight {
+  margin-bottom: 16px;
+}
+
+.modal-weight label,
+.modal-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.weight-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weight-adj {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.weight-adj:active {
+  background: var(--border);
+}
+
+#weight-input {
+  width: 70px;
+  text-align: center;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 40px;
+}
+
+.weight-unit {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-actions .primary-btn,
+.modal-actions .secondary-btn {
+  flex: 1;
+}
+
+.panel select {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 44px;
+  appearance: auto;
+}
+
 .remember-label {
   display: flex;
   align-items: center;

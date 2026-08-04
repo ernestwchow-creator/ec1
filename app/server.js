@@ -65,11 +65,15 @@ function buildFoodResult(food) {
   };
 }
 
-function calculateCalciumRecommendation(totalOxalateMg, dietaryCalciumMg) {
+const MIN_SUPPLEMENT_THRESHOLD_MG = 100;
+
+function calculateCalciumRecommendation(totalOxalateMg, dietaryCalciumMg, tabletSizeMg) {
+  const tabletSize = tabletSizeMg || 315;
   const stoichiometricCa = totalOxalateMg * MOLAR_RATIO_CA_TO_OX;
   const targetCa = stoichiometricCa * BINDING_SAFETY_FACTOR;
-  const supplementCa = Math.max(0, targetCa - dietaryCalciumMg);
-  const tablets = supplementCa > 0 ? Math.ceil(supplementCa / 315) : 0;
+  const rawSupplement = Math.max(0, targetCa - dietaryCalciumMg);
+  const supplementCa = rawSupplement < MIN_SUPPLEMENT_THRESHOLD_MG ? 0 : rawSupplement;
+  const tablets = supplementCa > 0 ? Math.ceil(supplementCa / tabletSize) : 0;
 
   return {
     oxalate_mg: Math.round(totalOxalateMg),
@@ -78,7 +82,8 @@ function calculateCalciumRecommendation(totalOxalateMg, dietaryCalciumMg) {
     dietary_calcium_mg: Math.round(dietaryCalciumMg),
     supplement_calcium_mg: Math.round(supplementCa),
     calcium_citrate_tablets: tablets,
-    calcium_citrate_tablet_size_mg: 315,
+    calcium_citrate_tablet_size_mg: tabletSize,
+    below_threshold: rawSupplement > 0 && rawSupplement < MIN_SUPPLEMENT_THRESHOLD_MG,
   };
 }
 
@@ -173,7 +178,8 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
     }
 
-    const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa);
+    const tabletSize = req.body.tablet_size_mg || 315;
+    const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa, tabletSize);
 
     const riskLevel =
       totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
@@ -227,7 +233,8 @@ app.post("/api/recalculate", (req, res) => {
     if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
   }
 
-  const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa);
+  const tabletSize = req.body.tablet_size_mg || 315;
+  const calcium = calculateCalciumRecommendation(totalOxalate, totalDietaryCa, tabletSize);
   const riskLevel =
     totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
   const giLabel = maxGI >= 70 ? "high" : maxGI >= 56 ? "medium" : "low";

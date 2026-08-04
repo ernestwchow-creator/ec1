@@ -18,13 +18,12 @@ if (isIOS && !isStandalone && !sessionStorage.getItem("install_dismissed")) {
   });
 }
 
-// -- Food Memory (corrections stored in localStorage) --
+// -- Food Memory --
 const MEMORY_KEY = "oxacheck_food_memory";
 
 function loadMemory() {
-  try {
-    return JSON.parse(localStorage.getItem(MEMORY_KEY)) || {};
-  } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(MEMORY_KEY)) || {}; }
+  catch { return {}; }
 }
 
 function saveMemory(mem) {
@@ -53,18 +52,60 @@ function applyMemoryToResults(foods) {
     const remembered = recallCorrection(f.name);
     if (remembered && remembered.toLowerCase() !== f.name.toLowerCase()) {
       changed = true;
-      return {
-        ...f,
-        original_name: f.name,
-        name: remembered,
-        confidence: "high",
-        auto_corrected: true,
-      };
+      return { ...f, original_name: f.name, name: remembered, confidence: "high", auto_corrected: true };
     }
     return f;
   });
   return { foods: updated, changed };
 }
+
+// -- Tablet Size --
+const TABLET_KEY = "oxacheck_tablet_size";
+
+function getTabletSize() {
+  return parseInt(localStorage.getItem(TABLET_KEY)) || 315;
+}
+
+function setTabletSize(mg) {
+  localStorage.setItem(TABLET_KEY, mg.toString());
+}
+
+// -- Settings Panel --
+const settingsBtn = $("#settings-btn");
+const settingsPanel = $("#settings-panel");
+const tabletSelect = $("#tablet-size-input");
+const tabletCustom = $("#tablet-size-custom");
+
+settingsBtn.addEventListener("click", () => {
+  settingsPanel.classList.toggle("hidden");
+  if (!settingsPanel.classList.contains("hidden")) {
+    const saved = getTabletSize();
+    const match = [...tabletSelect.options].find((o) => o.value === saved.toString());
+    if (match) {
+      tabletSelect.value = saved.toString();
+      tabletCustom.classList.add("hidden");
+    } else {
+      tabletSelect.value = "custom";
+      tabletCustom.value = saved;
+      tabletCustom.classList.remove("hidden");
+    }
+  }
+});
+
+tabletSelect.addEventListener("change", () => {
+  if (tabletSelect.value === "custom") {
+    tabletCustom.classList.remove("hidden");
+    tabletCustom.focus();
+  } else {
+    tabletCustom.classList.add("hidden");
+    setTabletSize(parseInt(tabletSelect.value));
+  }
+});
+
+tabletCustom.addEventListener("change", () => {
+  const val = parseInt(tabletCustom.value);
+  if (val >= 50 && val <= 1500) setTabletSize(val);
+});
 
 // -- State --
 let capturedImage = null;
@@ -85,15 +126,12 @@ function resizeImage(dataUrl, maxDim) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      let w = img.width;
-      let h = img.height;
+      let w = img.width, h = img.height;
       if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
       const scale = maxDim / Math.max(w, h);
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
+      w = Math.round(w * scale); h = Math.round(h * scale);
       const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL("image/jpeg", 0.82));
     };
@@ -104,10 +142,7 @@ function resizeImage(dataUrl, maxDim) {
 function handleFileSelect(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async () => {
-    const resized = await resizeImage(reader.result, 1280);
-    showCaptured(resized);
-  };
+  reader.onload = async () => showCaptured(await resizeImage(reader.result, 1280));
   reader.readAsDataURL(file);
 }
 
@@ -144,42 +179,7 @@ cameraInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]
 galleryInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
 retakeBtn.addEventListener("click", resetCapture);
 
-// -- Analysis --
-analyzeBtn.addEventListener("click", async () => {
-  if (!capturedImage) return;
-
-  $("#capture-section").classList.add("hidden");
-  $("#loading-section").classList.remove("hidden");
-  $("#results-section").classList.add("hidden");
-
-  try {
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: capturedImage }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
-    // Apply remembered corrections
-    const { foods: correctedFoods, changed } = applyMemoryToResults(data.foods);
-    if (changed) {
-      const recalc = await recalculateFromFoods(correctedFoods);
-      currentResults = { ...data, ...recalc };
-      currentResults.meal_description = data.meal_description;
-    } else {
-      currentResults = data;
-    }
-
-    renderResults(currentResults);
-  } catch (err) {
-    showError(err.message);
-    $("#capture-section").classList.remove("hidden");
-  } finally {
-    $("#loading-section").classList.add("hidden");
-  }
-});
-
+// -- API helpers --
 async function recalculateFromFoods(foods) {
   const foodList = foods.map((f) => ({
     name: f.name,
@@ -193,12 +193,46 @@ async function recalculateFromFoods(foods) {
   const res = await fetch("/api/recalculate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ foods: foodList }),
+    body: JSON.stringify({ foods: foodList, tablet_size_mg: getTabletSize() }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error);
   return data;
 }
+
+// -- Analysis --
+analyzeBtn.addEventListener("click", async () => {
+  if (!capturedImage) return;
+
+  $("#capture-section").classList.add("hidden");
+  $("#loading-section").classList.remove("hidden");
+  $("#results-section").classList.add("hidden");
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: capturedImage, tablet_size_mg: getTabletSize() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const { foods: correctedFoods, changed } = applyMemoryToResults(data.foods);
+    if (changed) {
+      const recalc = await recalculateFromFoods(correctedFoods);
+      currentResults = { ...data, ...recalc };
+      currentResults.meal_description = data.meal_description;
+    } else {
+      currentResults = data;
+    }
+    renderResults(currentResults);
+  } catch (err) {
+    showError(err.message);
+    $("#capture-section").classList.remove("hidden");
+  } finally {
+    $("#loading-section").classList.add("hidden");
+  }
+});
 
 // -- Render Results --
 function renderResults(data) {
@@ -217,16 +251,19 @@ function renderResults(data) {
   banner.textContent = riskMessages[data.risk_level] || "";
   banner.className = "risk-banner risk-" + data.risk_level.replace(" ", "");
 
-  // Oxalate & Calcium cards
   const ca = data.calcium_recommendation;
   $("#total-oxalate").textContent = data.total_oxalate_mg;
   $("#dietary-calcium").textContent = ca.dietary_calcium_mg;
   $("#supplement-calcium").textContent = ca.supplement_calcium_mg;
-  $("#tablet-info").textContent = ca.calcium_citrate_tablets > 0
-    ? `mg / ${ca.calcium_citrate_tablets} tablet${ca.calcium_citrate_tablets !== 1 ? "s" : ""}`
-    : "no supplement needed";
 
-  // Carb cards
+  if (ca.supplement_calcium_mg === 0 && ca.below_threshold) {
+    $("#tablet-info").textContent = "too low to supplement";
+  } else if (ca.calcium_citrate_tablets > 0) {
+    $("#tablet-info").textContent = `mg / ${ca.calcium_citrate_tablets} × ${ca.calcium_citrate_tablet_size_mg}mg`;
+  } else {
+    $("#tablet-info").textContent = "no supplement needed";
+  }
+
   const carbs = data.carb_summary;
   $("#total-carbs").textContent = carbs.total_carbs_g;
   $("#total-fiber").textContent = carbs.total_fiber_g;
@@ -243,8 +280,7 @@ function renderResults(data) {
     low: "All low GI foods (55 or below) — gentle blood sugar impact",
   };
   giBanner.textContent = giMessages[carbs.gi_label] || "";
-  const giClass = { high: "risk-high", medium: "risk-moderate", low: "risk-low" }[carbs.gi_label] || "";
-  giBanner.className = "gi-banner " + giClass;
+  giBanner.className = "gi-banner " + ({ high: "risk-high", medium: "risk-moderate", low: "risk-low" }[carbs.gi_label] || "");
 
   renderFoodList(data.foods);
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -254,42 +290,38 @@ function renderFoodList(foods) {
   const maxOx = Math.max(...foods.map((f) => f.estimated_oxalate_mg || 0), 1);
   const foodDetails = $("#food-details");
 
-  foodDetails.innerHTML = foods
-    .map((f, i) => {
-      const pct = f.estimated_oxalate_mg ? Math.round((f.estimated_oxalate_mg / maxOx) * 100) : 0;
-      const barColor =
-        (f.estimated_oxalate_mg || 0) > 50 ? "var(--risk-high)"
-        : (f.estimated_oxalate_mg || 0) > 20 ? "var(--risk-moderate)"
-        : "var(--risk-low)";
+  foodDetails.innerHTML = foods.map((f, i) => {
+    const pct = f.estimated_oxalate_mg ? Math.round((f.estimated_oxalate_mg / maxOx) * 100) : 0;
+    const barColor =
+      (f.estimated_oxalate_mg || 0) > 50 ? "var(--risk-high)"
+      : (f.estimated_oxalate_mg || 0) > 20 ? "var(--risk-moderate)"
+      : "var(--risk-low)";
 
-      const hasAlts = f.alternatives && f.alternatives.length > 0;
-      const confLabel = f.confidence !== "high" ? ` · ${f.confidence} confidence` : "";
-      const enclosedLabel = f.enclosed ? ` · filling of ${esc(f.enclosed_in || "enclosed food")}` : "";
-      const autoCorrected = f.auto_corrected
-        ? `<div class="food-auto-corrected">Auto-corrected from "${esc(f.original_name)}" (remembered)</div>`
-        : "";
+    const confLabel = f.confidence !== "high" ? ` · ${f.confidence} confidence` : "";
+    const enclosedLabel = f.enclosed ? ` · filling of ${esc(f.enclosed_in || "enclosed food")}` : "";
+    const autoCorrected = f.auto_corrected
+      ? `<div class="food-auto-corrected">Auto-corrected from "${esc(f.original_name)}" (remembered)</div>` : "";
 
-      return `
-      <div class="food-item${f.enclosed ? " food-enclosed" : ""}" data-index="${i}">
-        <div class="food-item-header">
-          <span class="food-name">${esc(f.name)}</span>
-          <span class="food-oxalate">${f.estimated_oxalate_mg !== null ? f.estimated_oxalate_mg + " mg ox" : "?"}</span>
-        </div>
-        <div class="food-meta">
-          ~${f.weight_grams}g
-          ${f.dietary_calcium_mg !== null ? ` · ${f.dietary_calcium_mg} mg Ca` : ""}
-          ${f.oxalate_range_mg ? ` · Ox range: ${f.oxalate_range_mg[0]}–${f.oxalate_range_mg[1]} mg` : ""}
-          ${confLabel}${enclosedLabel}
-        </div>
-        ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
-        ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
-        ${!f.in_database ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
-        ${autoCorrected}
-        ${f.enclosed ? `<div class="food-correction-hint">Tap to change filling</div>` : hasAlts || f.confidence !== "high" ? `<div class="food-correction-hint">Tap to correct</div>` : `<div class="food-correction-hint">Tap to change</div>`}
-        ${f.in_database ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
-      </div>`;
-    })
-    .join("");
+    return `
+    <div class="food-item${f.enclosed ? " food-enclosed" : ""}" data-index="${i}">
+      <div class="food-item-header">
+        <span class="food-name">${esc(f.name)}</span>
+        <span class="food-oxalate">${f.estimated_oxalate_mg !== null ? f.estimated_oxalate_mg + " mg ox" : "?"}</span>
+      </div>
+      <div class="food-meta">
+        ~${f.weight_grams}g
+        ${f.dietary_calcium_mg !== null ? ` · ${f.dietary_calcium_mg} mg Ca` : ""}
+        ${f.oxalate_range_mg ? ` · Ox range: ${f.oxalate_range_mg[0]}–${f.oxalate_range_mg[1]} mg` : ""}
+        ${confLabel}${enclosedLabel}
+      </div>
+      ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
+      ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
+      ${!f.in_database ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
+      ${autoCorrected}
+      <div class="food-correction-hint">Tap to edit</div>
+      ${f.in_database ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
+    </div>`;
+  }).join("");
 
   foodDetails.querySelectorAll(".food-item").forEach((el) => {
     el.addEventListener("click", () => openCorrectionModal(parseInt(el.dataset.index)));
@@ -305,6 +337,8 @@ const customInput = $("#custom-food-input");
 const customBtn = $("#custom-food-btn");
 const cancelBtn = $("#modal-cancel");
 const rememberCheck = $("#remember-check");
+const weightInput = $("#weight-input");
+const saveWeightBtn = $("#modal-save-weight");
 
 let correctionIndex = -1;
 
@@ -314,24 +348,24 @@ function openCorrectionModal(index) {
   correctionIndex = index;
 
   if (food.enclosed) {
-    modalPrompt.textContent = `Guessed filling of ${food.enclosed_in || "enclosed food"}: "${food.name}" (~${food.weight_grams}g). What is actually inside?`;
+    modalPrompt.textContent = `Filling of ${food.enclosed_in || "enclosed food"}: "${food.name}" (~${food.weight_grams}g)`;
   } else {
-    modalPrompt.textContent = `Identified as "${food.name}" (~${food.weight_grams}g). Select the correct food:`;
+    modalPrompt.textContent = `Identified as "${food.name}" (~${food.weight_grams}g)`;
   }
+
+  weightInput.value = food.weight_grams;
 
   const alts = food.alternatives || [];
   const allOptions = [food.name, ...alts];
 
-  modalAlts.innerHTML = allOptions
-    .map((name, i) => `
-      <button class="alt-btn" data-name="${esc(name)}">
-        <span>${esc(name)}</span>
-        ${i === 0 ? '<span class="alt-label">current</span>' : ""}
-      </button>`)
-    .join("");
+  modalAlts.innerHTML = allOptions.map((name, i) => `
+    <button class="alt-btn" data-name="${esc(name)}">
+      <span>${esc(name)}</span>
+      ${i === 0 ? '<span class="alt-label">current</span>' : ""}
+    </button>`).join("");
 
   modalAlts.querySelectorAll(".alt-btn").forEach((btn) => {
-    btn.addEventListener("click", () => applyCorrection(btn.dataset.name));
+    btn.addEventListener("click", () => applyCorrection(btn.dataset.name, parseInt(weightInput.value)));
   });
 
   rememberCheck.checked = true;
@@ -344,19 +378,20 @@ function closeModal() {
   correctionIndex = -1;
 }
 
-async function applyCorrection(newName) {
+async function applyCorrection(newName, newWeight) {
   if (correctionIndex < 0 || !currentResults) return;
 
-  const originalName = currentResults.foods[correctionIndex].name;
+  const food = currentResults.foods[correctionIndex];
+  const originalName = food.original_name || food.name;
+  const nameChanged = newName.toLowerCase() !== food.name.toLowerCase();
 
-  if (rememberCheck.checked && newName.toLowerCase() !== originalName.toLowerCase()) {
-    const keyName = currentResults.foods[correctionIndex].original_name || originalName;
-    rememberCorrection(keyName, newName);
+  if (rememberCheck.checked && nameChanged) {
+    rememberCorrection(originalName, newName);
   }
 
   const foodList = currentResults.foods.map((f, i) => ({
     name: i === correctionIndex ? newName : f.name,
-    weight_grams: f.weight_grams,
+    weight_grams: i === correctionIndex ? (newWeight || f.weight_grams) : f.weight_grams,
     confidence: i === correctionIndex ? "high" : f.confidence,
     alternatives: i === correctionIndex ? [] : (f.alternatives || []),
     enclosed: i === correctionIndex ? false : (f.enclosed || false),
@@ -378,16 +413,32 @@ async function applyCorrection(newName) {
   }
 }
 
+// Weight adjustment buttons
+document.querySelectorAll(".weight-adj").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const delta = parseInt(btn.dataset.delta);
+    const cur = parseInt(weightInput.value) || 100;
+    weightInput.value = Math.max(5, cur + delta);
+  });
+});
+
+saveWeightBtn.addEventListener("click", () => {
+  if (correctionIndex < 0 || !currentResults) return;
+  const food = currentResults.foods[correctionIndex];
+  applyCorrection(food.name, parseInt(weightInput.value));
+});
+
 modalBackdrop.addEventListener("click", closeModal);
 cancelBtn.addEventListener("click", closeModal);
 customBtn.addEventListener("click", () => {
   const val = customInput.value.trim();
-  if (val) applyCorrection(val);
+  if (val) applyCorrection(val, parseInt(weightInput.value));
 });
 customInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     const val = customInput.value.trim();
-    if (val) applyCorrection(val);
+    if (val) applyCorrection(val, parseInt(weightInput.value));
   }
 });
 
@@ -396,21 +447,24 @@ const clearMemBtn = $("#clear-memory-btn");
 if (clearMemBtn) {
   clearMemBtn.addEventListener("click", () => {
     localStorage.removeItem(MEMORY_KEY);
-    showError("Food memory cleared");
+    updateMemoryCount();
+    showToast("Food memory cleared");
   });
 }
 
 // -- New Analysis --
 $("#new-analysis-btn").addEventListener("click", resetCapture);
 
-// -- Error Toast --
-function showError(msg) {
+// -- Toasts --
+function showError(msg) { showToast(msg, true); }
+
+function showToast(msg, isError) {
   const el = document.createElement("div");
-  el.className = "error-toast";
+  el.className = "toast" + (isError ? " toast-error" : " toast-info");
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.classList.add("visible"), 10);
-  setTimeout(() => { el.classList.remove("visible"); setTimeout(() => el.remove(), 300); }, 4000);
+  setTimeout(() => { el.classList.remove("visible"); setTimeout(() => el.remove(), 300); }, 3000);
 }
 
 function esc(str) {
@@ -445,12 +499,9 @@ async function loadReference() {
       const q = e.target.value.toLowerCase();
       renderRows(data.foods.filter((f) => f.name.includes(q) || f.category.includes(q)));
     });
-  } catch {
-    // database will load when server is available
-  }
+  } catch {}
 }
 
-// -- Render memory count --
 function updateMemoryCount() {
   const mem = loadMemory();
   const count = Object.keys(mem).length;
@@ -458,24 +509,36 @@ function updateMemoryCount() {
   if (el) el.textContent = count > 0 ? `${count} correction${count !== 1 ? "s" : ""} remembered` : "No corrections saved";
 }
 
-// -- Error toast styles --
+// -- Toast styles --
 const toastStyle = document.createElement("style");
 toastStyle.textContent = `
-.error-toast {
+.toast {
   position: fixed;
   bottom: calc(20px + var(--safe-bottom, 0px));
   left: 16px; right: 16px;
   max-width: 480px; margin: 0 auto;
   padding: 14px 16px;
-  background: var(--risk-high); color: white;
   border-radius: 10px; font-size: 14px; font-weight: 500;
   text-align: center; z-index: 1000;
   opacity: 0; transform: translateY(20px);
   transition: opacity 0.3s, transform 0.3s;
 }
-.error-toast.visible { opacity: 1; transform: translateY(0); }`;
+.toast-error { background: var(--risk-high); color: white; }
+.toast-info { background: var(--primary); color: white; }
+.toast.visible { opacity: 1; transform: translateY(0); }`;
 document.head.appendChild(toastStyle);
 
 // -- Init --
 loadReference();
 updateMemoryCount();
+
+// Restore tablet size in select
+const savedTablet = getTabletSize();
+const matchOpt = [...tabletSelect.options].find((o) => o.value === savedTablet.toString());
+if (matchOpt) {
+  tabletSelect.value = savedTablet.toString();
+} else {
+  tabletSelect.value = "custom";
+  tabletCustom.value = savedTablet;
+  tabletCustom.classList.remove("hidden");
+}
