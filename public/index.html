@@ -2,48 +2,79 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- viewport-fit=cover lets the page paint under the notch/home indicator;
+       safe-area insets in the CSS keep content clear of them. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Chord Transposer</title>
+
+  <!-- Installable to the iPhone/iPad home screen -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chords">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      /* Stop iOS from re-flowing text when the device rotates. */
+      -webkit-text-size-adjust: 100%;
+    }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #f0f0f5;
       color: #1a1a2e;
       min-height: 100vh;
+      /* Kill the grey flash when tapping controls on iOS. */
+      -webkit-tap-highlight-color: transparent;
+      /* No rubber-band bounce past the page edges in standalone mode. */
+      overscroll-behavior-y: none;
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
     header {
       background: #1a1a2e;
       color: #fff;
-      padding: 1rem 2rem;
+      /* Extend into the status bar area, then inset the content below it. */
+      padding: calc(1rem + env(safe-area-inset-top)) calc(1.25rem + env(safe-area-inset-right))
+               1rem calc(1.25rem + env(safe-area-inset-left));
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
 
-    header h1 { font-size: 1.3rem; font-weight: 600; }
+    header h1 { font-size: 1.2rem; font-weight: 600; }
 
     .auth-btn {
       background: #6c5ce7;
       color: #fff;
       border: none;
+      /* 44px tall: Apple's minimum comfortable tap target. */
+      min-height: 44px;
       padding: 0.5rem 1.2rem;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 0.9rem;
       text-decoration: none;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
     }
-    .auth-btn:hover { background: #5a4bd1; }
+    .auth-btn:active { background: #5a4bd1; }
     .auth-btn.logout { background: transparent; border: 1px solid #555; }
-    .auth-btn.logout:hover { background: #333; }
 
     main {
       max-width: 960px;
-      margin: 2rem auto;
-      padding: 0 1rem;
+      margin: 1.5rem auto;
+      padding: 0 calc(1rem + env(safe-area-inset-left)) 2rem calc(1rem + env(safe-area-inset-right));
     }
 
     .card {
@@ -67,12 +98,17 @@
 
     .url-row input {
       flex: 1;
+      min-width: 0;
+      min-height: 48px;
       padding: 0.7rem 1rem;
       border: 2px solid #ddd;
       border-radius: 8px;
-      font-size: 0.95rem;
+      /* Must be >=16px or iOS Safari zooms the page in on focus. */
+      font-size: 16px;
       outline: none;
       transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .url-row input:focus { border-color: #6c5ce7; }
 
@@ -80,17 +116,22 @@
       background: #6c5ce7;
       color: #fff;
       border: none;
+      min-height: 48px;
       padding: 0.7rem 1.5rem;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.95rem;
+      font-size: 1rem;
       font-weight: 500;
-      transition: background 0.2s;
+      transition: background 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+      touch-action: manipulation;
     }
-    .btn:hover { background: #5a4bd1; }
+    .btn:active { background: #5a4bd1; }
     .btn:disabled { background: #ccc; cursor: not-allowed; }
     .btn.success { background: #00b894; }
-    .btn.success:hover { background: #00a381; }
+    .btn.success:active { background: #00a381; }
+    .btn.full { width: 100%; }
 
     .doc-title {
       font-size: 1.2rem;
@@ -107,13 +148,17 @@
     }
 
     .chart-tab {
+      min-height: 44px;
       padding: 0.4rem 1rem;
       border: 2px solid #ddd;
-      border-radius: 20px;
+      border-radius: 22px;
       background: #fff;
       cursor: pointer;
       font-size: 0.85rem;
-      transition: all 0.2s;
+      transition: all 0.15s;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .chart-tab.active {
       border-color: #6c5ce7;
@@ -125,31 +170,43 @@
     .chart-table-wrapper {
       overflow-x: auto;
       margin-bottom: 1rem;
+      /* Momentum scrolling on iOS, and don't let a horizontal swipe on the
+         table trigger Safari's back-navigation gesture. */
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      border-radius: 8px;
     }
 
     .chord-table {
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
       font-size: 0.85rem;
       width: 100%;
     }
 
     .chord-table td {
-      border: 1px solid #e0e0e0;
-      padding: 0.4rem 0.6rem;
+      border-right: 1px solid #e0e0e0;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.55rem 0.7rem;
       text-align: center;
       white-space: nowrap;
+      background: #fff;
     }
+    .chord-table tr:first-child td { border-top: 1px solid #e0e0e0; }
+    .chord-table td:first-child { border-left: 1px solid #e0e0e0; }
 
+    /* Pin the section label so it stays visible while chords scroll sideways. */
     .chord-table td:first-child {
       background: #f8f8fc;
       font-weight: 600;
       color: #555;
       text-align: left;
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      box-shadow: 1px 0 0 #e0e0e0;
     }
-
-    .chord-table tr:hover td { background: #fafafe; }
-    .chord-table tr:hover td:first-child { background: #f0f0f8; }
 
     .transpose-controls {
       display: flex;
@@ -166,27 +223,35 @@
     }
 
     .semitone-btn {
-      width: 36px;
-      height: 36px;
+      width: 48px;
+      height: 48px;
       border: 2px solid #ddd;
       border-radius: 50%;
       background: #fff;
       cursor: pointer;
-      font-size: 1.2rem;
+      font-size: 1.5rem;
+      line-height: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
+      transition: all 0.15s;
       color: #333;
+      -webkit-appearance: none;
+      appearance: none;
+      /* Skip the 300ms tap delay and block double-tap-to-zoom on the steppers. */
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     }
-    .semitone-btn:hover { border-color: #6c5ce7; color: #6c5ce7; }
+    .semitone-btn:active { border-color: #6c5ce7; color: #6c5ce7; background: #f0edff; }
 
     .semitone-display {
-      font-size: 1.1rem;
+      font-size: 1.25rem;
       font-weight: 700;
-      min-width: 2.5rem;
+      min-width: 3rem;
       text-align: center;
       color: #6c5ce7;
+      font-variant-numeric: tabular-nums;
     }
 
     .key-display {
@@ -198,15 +263,20 @@
     .flat-toggle {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-      font-size: 0.9rem;
+      gap: 0.5rem;
+      font-size: 0.95rem;
       color: #555;
+      min-height: 44px;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     .flat-toggle input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      width: 24px;
+      height: 24px;
       accent-color: #6c5ce7;
+      flex-shrink: 0;
     }
 
     .section-label {
@@ -259,11 +329,57 @@
       font-size: 0.8rem;
     }
 
-    @media (max-width: 600px) {
-      header { padding: 0.8rem 1rem; }
-      .card { padding: 1rem; }
+    /* iPhone */
+    @media (max-width: 700px) {
+      header {
+        padding: calc(0.75rem + env(safe-area-inset-top)) 1rem 0.75rem 1rem;
+      }
+      header h1 { font-size: 1.05rem; }
+      main { margin: 1rem auto; }
+      .card { padding: 1rem; border-radius: 10px; }
       .url-row { flex-direction: column; }
-      .transpose-controls { flex-direction: column; align-items: flex-start; }
+      .chord-table { font-size: 0.8rem; }
+      .chord-table td { padding: 0.5rem 0.55rem; }
+
+      .transpose-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.85rem;
+        padding: 0.9rem;
+        background: #fafafe;
+        border-radius: 10px;
+      }
+      /* Center the stepper and let it breathe on a narrow screen. */
+      .semitone-group { justify-content: center; gap: 0.75rem; }
+      .semitone-btn { width: 52px; height: 52px; }
+      .key-display { text-align: center; }
+      .flat-toggle { justify-content: center; }
+
+      /* A full-width button is easier to hit with a thumb. */
+      #add-btn { width: 100%; }
+    }
+
+    /* iPad and larger: show original and transposed side by side so you can
+       compare them without scrolling. */
+    @media (min-width: 900px) {
+      main { max-width: 1100px; }
+
+      .compare.has-transposed {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+        align-items: start;
+      }
+      /* Grid children default to min-width:auto, so a wide chord table would
+         push the column past the viewport. Let them shrink and scroll the
+         table inside its own wrapper instead. */
+      .compare.has-transposed > * { min-width: 0; }
+      .transposed-section { margin-top: 0; }
+    }
+
+    /* Landscape iPad / desktop can go wider still. */
+    @media (min-width: 1200px) {
+      main { max-width: 1240px; }
     }
   </style>
 </head>
@@ -295,14 +411,11 @@
 
           <div id="multi-chart-selector" class="chart-selector hidden"></div>
 
-          <div class="section-label">Original</div>
-          <div class="chart-table-wrapper" id="original-chart"></div>
-
           <div class="transpose-controls">
             <div class="semitone-group">
-              <button class="semitone-btn" onclick="changeSemitones(-1)">-</button>
+              <button class="semitone-btn" onclick="changeSemitones(-1)" aria-label="Transpose down a semitone">&minus;</button>
               <span class="semitone-display" id="semitone-display">0</span>
-              <button class="semitone-btn" onclick="changeSemitones(1)">+</button>
+              <button class="semitone-btn" onclick="changeSemitones(1)" aria-label="Transpose up a semitone">+</button>
             </div>
             <div class="key-display" id="key-display"></div>
             <label class="flat-toggle">
@@ -311,10 +424,20 @@
             </label>
           </div>
 
-          <div id="transposed-section" class="transposed-section hidden">
-            <div class="section-label">Transposed</div>
-            <div class="chart-table-wrapper" id="transposed-chart"></div>
-            <button class="btn success" id="add-btn" onclick="addToDocument()">
+          <div class="compare" id="compare">
+            <div>
+              <div class="section-label">Original</div>
+              <div class="chart-table-wrapper" id="original-chart"></div>
+            </div>
+
+            <div id="transposed-section" class="transposed-section hidden">
+              <div class="section-label">Transposed</div>
+              <div class="chart-table-wrapper" id="transposed-chart"></div>
+            </div>
+          </div>
+
+          <div id="add-section" class="hidden">
+            <button class="btn success full" id="add-btn" onclick="addToDocument()">
               Add transposed chart to document
             </button>
           </div>
@@ -499,11 +622,17 @@
       state.useFlats = useFlats;
 
       const section = document.getElementById('transposed-section');
+      const addSection = document.getElementById('add-section');
+      const compare = document.getElementById('compare');
       if (state.semitones === 0) {
         section.classList.add('hidden');
+        addSection.classList.add('hidden');
+        compare.classList.remove('has-transposed');
         return;
       }
       section.classList.remove('hidden');
+      addSection.classList.remove('hidden');
+      compare.classList.add('has-transposed');
 
       const chart = state.doc.chordCharts[state.selectedChart];
       const transposed = chart.data.map((row) =>
@@ -559,8 +688,26 @@
     }
 
     document.getElementById('doc-url').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') loadDocument();
+      if (e.key === 'Enter') {
+        // Dismiss the iOS keyboard so the results aren't hidden behind it.
+        e.target.blur();
+        loadDocument();
+      }
     });
+
+    // On iOS the share sheet often hands over a URL with tracking params;
+    // pasting is the normal path, so select-all on focus makes replacing easy.
+    document.getElementById('doc-url').addEventListener('focus', (e) => {
+      if (e.target.value) e.target.select();
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+          // Offline shell is a nice-to-have; the app works fine without it.
+        });
+      });
+    }
 
     checkAuth();
   </script>

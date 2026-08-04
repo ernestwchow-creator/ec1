@@ -11,13 +11,29 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// When deployed, BASE_URL is the public https origin (e.g. https://chords.onrender.com).
+// Locally it falls back to localhost. The OAuth redirect URI is derived from it, so it
+// must exactly match an "Authorized redirect URI" in the Google Cloud console.
+const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const IS_PROD = BASE_URL.startsWith('https://');
+
+// Hosting platforms terminate TLS at a proxy; without this Express sees http and
+// refuses to set the secure session cookie.
+app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'chord-transposer-dev',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: IS_PROD,
+    httpOnly: true,
+    // 'lax' still sends the cookie on the top-level redirect back from Google.
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000
+  }
 }));
 
 function getOAuth2Client() {
@@ -25,7 +41,7 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    `http://localhost:${PORT}/auth/callback`
+    `${BASE_URL}/auth/callback`
   );
 }
 
@@ -132,6 +148,12 @@ app.post('/api/transpose', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Chord Transposer running at http://localhost:${PORT}`);
+// Bind 0.0.0.0 so the app is reachable from other devices on the network
+// (and from the host platform's proxy when deployed).
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Chord Transposer running on port ${PORT}`);
+  console.log(`Base URL: ${BASE_URL}`);
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    console.warn('WARNING: GOOGLE_CLIENT_ID is not set. Copy .env.example to .env and fill it in.');
+  }
 });

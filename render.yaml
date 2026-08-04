@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: chord-transposer
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # Set these in the Render dashboard (Environment tab) — never commit secrets.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Must match your Render URL, e.g. https://chord-transposer.onrender.com
+      - key: BASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
