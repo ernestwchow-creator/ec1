@@ -473,12 +473,13 @@ function renderFoodList(foods) {
       ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}${f.fat_g !== null ? " · Fat: " + f.fat_g + "g" : ""}${f.protein_g !== null ? " · Protein: " + f.protein_g + "g" : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
       ${sourceHtml(f)}
+      ${f.source === "flagged" ? `<div class="food-flagged">Values corrected by user</div>` : ""}
       ${f.source === "label" ? `<div class="food-label-source">Values from scanned nutritional label</div>` : ""}
-      ${!f.in_database && f.ai_estimated && f.source !== "label" ? `<div class="food-ai-estimated"><a href="#" class="ai-info-link" onclick="event.stopPropagation();showAiInfo();return false;">AI estimated</a> — not in reference database</div>` : ""}
-      ${!f.in_database && !f.ai_estimated && f.source !== "label" ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
+      ${!f.in_database && f.ai_estimated && f.source !== "label" && f.source !== "flagged" ? `<div class="food-ai-estimated"><a href="#" class="ai-info-link" onclick="event.stopPropagation();showAiInfo();return false;">AI estimated</a> — not in reference database</div>` : ""}
+      ${!f.in_database && !f.ai_estimated && f.source !== "label" && f.source !== "flagged" ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
       ${autoCorrected}
       <div class="food-correction-hint">Tap to edit</div>
-      ${f.in_database || f.ai_estimated || f.source === "label" ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
+      ${f.in_database || f.ai_estimated || f.source === "label" || f.source === "flagged" ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -501,6 +502,9 @@ const weightInput = $("#weight-input");
 const saveWeightBtn = $("#modal-save-weight");
 const labelInput = $("#label-input");
 const labelStatus = $("#label-status");
+const flagSection = $("#flag-section");
+const flagToggleBtn = $("#flag-toggle-btn");
+const flagSaveBtn = $("#flag-save-btn");
 
 let correctionIndex = -1;
 let addMode = false;
@@ -586,7 +590,22 @@ function openCorrectionModal(index) {
   labelStatus.className = "label-status hidden";
   labelInput.value = "";
   deleteBtn.classList.remove("hidden");
+
+  flagSection.classList.add("hidden");
+  flagToggleBtn.classList.remove("hidden");
+  prefillFlagFields(food);
+
   modal.classList.remove("hidden");
+}
+
+function prefillFlagFields(food) {
+  $("#flag-oxalate").value = food.est_oxalate_mg_per_100g ?? "";
+  $("#flag-calcium").value = food.est_calcium_mg_per_100g ?? "";
+  $("#flag-carbs").value = food.est_carbs_g_per_100g ?? "";
+  $("#flag-fiber").value = food.est_fiber_g_per_100g ?? "";
+  $("#flag-fat").value = food.est_fat_g_per_100g ?? "";
+  $("#flag-protein").value = food.est_protein_g_per_100g ?? "";
+  $("#flag-gi").value = food.est_glycemic_index ?? "";
 }
 
 function closeModal() {
@@ -688,6 +707,8 @@ function openAddFoodModal() {
   labelInput.value = "";
   saveWeightBtn.textContent = "Add Food";
   deleteBtn.classList.add("hidden");
+  flagToggleBtn.classList.add("hidden");
+  flagSection.classList.add("hidden");
   modal.classList.remove("hidden");
   customInput.focus();
 }
@@ -826,6 +847,37 @@ async function deleteFood(index) {
 deleteBtn.addEventListener("click", () => {
   if (correctionIndex < 0 || !currentResults) return;
   deleteFood(correctionIndex);
+});
+
+flagToggleBtn.addEventListener("click", () => {
+  flagSection.classList.remove("hidden");
+  flagToggleBtn.classList.add("hidden");
+});
+
+flagSaveBtn.addEventListener("click", () => {
+  if (correctionIndex < 0 || !currentResults) return;
+  const food = currentResults.foods[correctionIndex];
+  const name = food.name;
+
+  const overrides = {
+    est_oxalate_mg_per_100g: parseFloat($("#flag-oxalate").value) || 0,
+    est_calcium_mg_per_100g: parseFloat($("#flag-calcium").value) || 0,
+    est_carbs_g_per_100g: parseFloat($("#flag-carbs").value) || 0,
+    est_fiber_g_per_100g: parseFloat($("#flag-fiber").value) || 0,
+    est_fat_g_per_100g: parseFloat($("#flag-fat").value) || 0,
+    est_protein_g_per_100g: parseFloat($("#flag-protein").value) || 0,
+    est_glycemic_index: parseFloat($("#flag-gi").value) || 0,
+    source: "flagged",
+  };
+
+  const mem = loadMemory();
+  const key = name.toLowerCase().trim();
+  mem[key] = { name, estimates: overrides };
+  saveMemory(mem);
+  updateMemoryCount();
+
+  scannedLabel = overrides;
+  applyCorrection(name, getWeightInGrams());
 });
 
 modalBackdrop.addEventListener("click", closeModal);
@@ -1004,9 +1056,13 @@ async function loadReference() {
 
 function updateMemoryCount() {
   const mem = loadMemory();
-  const count = Object.keys(mem).length;
+  const entries = Object.values(mem);
+  const count = entries.length;
+  const flagged = entries.filter(e => e.estimates && e.estimates.source === "flagged").length;
   const el = $("#memory-count");
   if (el) el.textContent = count > 0 ? `${count} correction${count !== 1 ? "s" : ""} remembered` : "No corrections saved";
+  const flagEl = $("#flagged-count");
+  if (flagEl) flagEl.textContent = flagged > 0 ? `${flagged} food${flagged !== 1 ? "s" : ""} with user-corrected values` : "";
 }
 
 // -- Toast styles --

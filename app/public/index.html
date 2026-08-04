@@ -219,7 +219,8 @@
       <details>
         <summary>Food Memory</summary>
         <p id="memory-count" class="memory-info">No corrections saved</p>
-        <p class="memory-info">When you correct a food identification, the app remembers your choice and auto-applies it next time.</p>
+        <p id="flagged-count" class="memory-info"></p>
+        <p class="memory-info">When you correct a food identification or flag wrong values, the app remembers your changes and auto-applies them next time.</p>
         <button id="clear-memory-btn" class="secondary-btn full-width">Clear All Remembered Corrections</button>
       </details>
     </section>
@@ -270,6 +271,27 @@
         <input type="text" id="custom-food-input" placeholder="Or type a food name...">
         <button id="custom-food-btn" class="primary-btn">Use This</button>
       </div>
+
+      <div class="flag-section hidden" id="flag-section">
+        <label class="modal-section-label">Correct nutritional values (per 100g)</label>
+        <p class="flag-hint">Override the estimated values. These will be remembered for this food.</p>
+        <div class="flag-grid">
+          <label>Oxalate (mg)<input type="number" id="flag-oxalate" min="0" step="1"></label>
+          <label>Calcium (mg)<input type="number" id="flag-calcium" min="0" step="1"></label>
+          <label>Net Carbs (g)<input type="number" id="flag-carbs" min="0" step="0.1"></label>
+          <label>Fiber (g)<input type="number" id="flag-fiber" min="0" step="0.1"></label>
+          <label>Fat (g)<input type="number" id="flag-fat" min="0" step="0.1"></label>
+          <label>Protein (g)<input type="number" id="flag-protein" min="0" step="0.1"></label>
+          <label>GI<input type="number" id="flag-gi" min="0" max="100" step="1"></label>
+        </div>
+        <button id="flag-save-btn" class="primary-btn full-width">Save Corrected Values</button>
+      </div>
+      <button id="flag-toggle-btn" class="flag-toggle-btn hidden">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+        </svg>
+        Flag values as wrong
+      </button>
 
       <div class="scan-label-section">
         <label class="modal-section-label">Product nutritional label</label>
