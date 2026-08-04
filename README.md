@@ -48,11 +48,19 @@ account, so they cannot be copied from anywhere else.
 **1. Create a project.** [Google Cloud Console](https://console.cloud.google.com/)
 → project dropdown in the top bar → **New Project**. Name it anything.
 
-**2. Enable the APIs.** **APIs & Services → Library**, then enable all three:
+**2. Enable the APIs.** Three are needed. The Library page does not list them
+until you search by name, so these direct links are quicker — each opens the
+enable page for the project selected in the top bar:
 
-- **Google Docs API** — reading and writing charts
-- **Google Drive API** — creating the transposed copy
-- **Google Picker API** — the "Browse Google Drive" button
+| API | What needs it | Direct link |
+| --- | --- | --- |
+| Google Docs API | Reading and writing charts | [`docs.googleapis.com`](https://console.cloud.google.com/apis/library/docs.googleapis.com) |
+| Google Drive API | Creating the transposed copy | [`drive.googleapis.com`](https://console.cloud.google.com/apis/library/drive.googleapis.com) |
+| Google Picker API | The "Browse Google Drive" button | [`picker.googleapis.com`](https://console.cloud.google.com/apis/library/picker.googleapis.com) |
+
+Check the project name in the console's top bar before clicking **Enable** —
+enabling an API on the wrong project is easy to do and looks identical
+afterwards.
 
 Sign-in succeeds without these, and then requests fail with a 403 whose real
 meaning is "this API is switched off", so enable them up front.
