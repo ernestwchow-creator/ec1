@@ -66,6 +66,23 @@ function applyMemoryToResults(foods) {
   return { foods: updated, changed };
 }
 
+function rememberLabelData(foodName, labelData) {
+  const mem = loadMemory();
+  const key = foodName.toLowerCase().trim();
+  mem[key] = {
+    name: foodName,
+    estimates: {
+      est_oxalate_mg_per_100g: labelData.est_oxalate_mg_per_100g,
+      est_calcium_mg_per_100g: labelData.est_calcium_mg_per_100g,
+      est_carbs_g_per_100g: labelData.est_carbs_g_per_100g,
+      est_fiber_g_per_100g: labelData.est_fiber_g_per_100g,
+      est_glycemic_index: labelData.est_glycemic_index,
+      source: "label",
+    },
+  };
+  saveMemory(mem);
+}
+
 // -- Tablet Size --
 const TABLET_KEY = "oxacheck_tablet_size";
 
@@ -200,6 +217,7 @@ async function recalculateFromFoods(foods) {
     est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
     est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
     est_glycemic_index: f.est_glycemic_index ?? null,
+    source: f.source || null,
   }));
 
   const res = await fetch("/api/recalculate", {
@@ -350,11 +368,12 @@ function renderFoodList(foods) {
       ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
       ${sourceHtml(f)}
-      ${!f.in_database && f.ai_estimated ? `<div class="food-ai-estimated"><a href="#" class="ai-info-link" onclick="event.stopPropagation();showAiInfo();return false;">AI estimated</a> — not in reference database</div>` : ""}
-      ${!f.in_database && !f.ai_estimated ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
+      ${f.source === "label" ? `<div class="food-label-source">Values from scanned nutritional label</div>` : ""}
+      ${!f.in_database && f.ai_estimated && f.source !== "label" ? `<div class="food-ai-estimated"><a href="#" class="ai-info-link" onclick="event.stopPropagation();showAiInfo();return false;">AI estimated</a> — not in reference database</div>` : ""}
+      ${!f.in_database && !f.ai_estimated && f.source !== "label" ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
       ${autoCorrected}
       <div class="food-correction-hint">Tap to edit</div>
-      ${f.in_database || f.ai_estimated ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
+      ${f.in_database || f.ai_estimated || f.source === "label" ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -374,9 +393,12 @@ const cancelBtn = $("#modal-cancel");
 const rememberCheck = $("#remember-check");
 const weightInput = $("#weight-input");
 const saveWeightBtn = $("#modal-save-weight");
+const labelInput = $("#label-input");
+const labelStatus = $("#label-status");
 
 let correctionIndex = -1;
 let currentUnit = "g";
+let scannedLabel = null;
 
 const OZ_PER_G = 1 / 28.3495;
 const G_PER_OZ = 28.3495;
@@ -450,6 +472,10 @@ function openCorrectionModal(index) {
 
   rememberCheck.checked = true;
   customInput.value = "";
+  scannedLabel = null;
+  labelStatus.classList.add("hidden");
+  labelStatus.className = "label-status hidden";
+  labelInput.value = "";
   modal.classList.remove("hidden");
 }
 
@@ -465,14 +491,23 @@ async function applyCorrection(newName, newWeight) {
   const originalName = food.original_name || food.name;
   const nameChanged = newName.toLowerCase() !== food.name.toLowerCase();
 
-  if (rememberCheck.checked && nameChanged) {
-    rememberCorrection(originalName, newName, {
-      est_oxalate_mg_per_100g: food.est_oxalate_mg_per_100g,
-      est_calcium_mg_per_100g: food.est_calcium_mg_per_100g,
-      est_carbs_g_per_100g: food.est_carbs_g_per_100g,
-      est_fiber_g_per_100g: food.est_fiber_g_per_100g,
-      est_glycemic_index: food.est_glycemic_index,
-    });
+  const estimates = scannedLabel ? {
+    est_oxalate_mg_per_100g: scannedLabel.est_oxalate_mg_per_100g,
+    est_calcium_mg_per_100g: scannedLabel.est_calcium_mg_per_100g,
+    est_carbs_g_per_100g: scannedLabel.est_carbs_g_per_100g,
+    est_fiber_g_per_100g: scannedLabel.est_fiber_g_per_100g,
+    est_glycemic_index: scannedLabel.est_glycemic_index,
+    source: "label",
+  } : {
+    est_oxalate_mg_per_100g: food.est_oxalate_mg_per_100g,
+    est_calcium_mg_per_100g: food.est_calcium_mg_per_100g,
+    est_carbs_g_per_100g: food.est_carbs_g_per_100g,
+    est_fiber_g_per_100g: food.est_fiber_g_per_100g,
+    est_glycemic_index: food.est_glycemic_index,
+  };
+
+  if (rememberCheck.checked && (nameChanged || scannedLabel)) {
+    rememberCorrection(originalName, newName, estimates);
   }
 
   const foodList = currentResults.foods.map((f, i) => ({
@@ -482,11 +517,12 @@ async function applyCorrection(newName, newWeight) {
     alternatives: i === correctionIndex ? [] : (f.alternatives || []),
     enclosed: i === correctionIndex ? false : (f.enclosed || false),
     enclosed_in: i === correctionIndex ? null : (f.enclosed_in || null),
-    est_oxalate_mg_per_100g: f.est_oxalate_mg_per_100g ?? null,
-    est_calcium_mg_per_100g: f.est_calcium_mg_per_100g ?? null,
-    est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
-    est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
-    est_glycemic_index: f.est_glycemic_index ?? null,
+    est_oxalate_mg_per_100g: (i === correctionIndex ? estimates.est_oxalate_mg_per_100g : f.est_oxalate_mg_per_100g) ?? null,
+    est_calcium_mg_per_100g: (i === correctionIndex ? estimates.est_calcium_mg_per_100g : f.est_calcium_mg_per_100g) ?? null,
+    est_carbs_g_per_100g: (i === correctionIndex ? estimates.est_carbs_g_per_100g : f.est_carbs_g_per_100g) ?? null,
+    est_fiber_g_per_100g: (i === correctionIndex ? estimates.est_fiber_g_per_100g : f.est_fiber_g_per_100g) ?? null,
+    est_glycemic_index: (i === correctionIndex ? estimates.est_glycemic_index : f.est_glycemic_index) ?? null,
+    source: i === correctionIndex ? (estimates.source || f.source) : (f.source || null),
   }));
 
   closeModal();
@@ -544,6 +580,56 @@ customInput.addEventListener("keydown", (e) => {
     const val = customInput.value.trim();
     if (val) applyCorrection(val, getWeightInGrams());
   }
+});
+
+// -- Label Scanning --
+labelInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  labelStatus.classList.remove("hidden", "scanned", "scan-error");
+  labelStatus.classList.add("scanning");
+  labelStatus.textContent = "Reading nutritional label...";
+
+  try {
+    const reader = new FileReader();
+    const dataUrl = await new Promise((resolve) => {
+      reader.onload = async () => resolve(await resizeImage(reader.result, 1280));
+      reader.readAsDataURL(file);
+    });
+
+    const res = await fetch("/api/scan-label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: dataUrl }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    scannedLabel = data;
+    labelStatus.classList.remove("scanning");
+    labelStatus.classList.add("scanned");
+
+    const nc = Math.round((data.est_carbs_g_per_100g - data.est_fiber_g_per_100g) * 10) / 10;
+    labelStatus.innerHTML = `<strong>${esc(data.product_name)}</strong>` +
+      `<div class="label-values">` +
+      `Ox: ${data.est_oxalate_mg_per_100g} mg · Ca: ${data.est_calcium_mg_per_100g} mg · ` +
+      `Carbs: ${data.est_carbs_g_per_100g}g · Fiber: ${data.est_fiber_g_per_100g}g · ` +
+      `Net: ${nc}g · GI: ${data.est_glycemic_index}` +
+      `${data.ingredients_summary ? `<br>Ingredients: ${esc(data.ingredients_summary)}` : ""}` +
+      `</div>`;
+
+    if (!customInput.value.trim()) {
+      customInput.value = data.product_name;
+    }
+  } catch (err) {
+    labelStatus.classList.remove("scanning");
+    labelStatus.classList.add("scan-error");
+    labelStatus.textContent = "Failed to read label: " + err.message;
+    scannedLabel = null;
+  }
+
+  labelInput.value = "";
 });
 
 // -- AI Info Modal --

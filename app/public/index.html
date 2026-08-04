@@ -213,6 +213,21 @@
         <input type="text" id="custom-food-input" placeholder="Or type a food name...">
         <button id="custom-food-btn" class="primary-btn">Use This</button>
       </div>
+
+      <div class="scan-label-section">
+        <label class="modal-section-label">Product nutritional label</label>
+        <p class="scan-label-hint">For commercial products, scan the nutrition facts to get exact values.</p>
+        <label id="scan-label-btn" class="secondary-btn scan-btn" for="label-input">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="13" y2="16"/>
+          </svg>
+          Scan Label
+        </label>
+        <input type="file" id="label-input" accept="image/*" capture="environment" hidden>
+        <div id="label-status" class="label-status hidden"></div>
+      </div>
+
       <label class="remember-label">
         <input type="checkbox" id="remember-check" checked>
         <span>Remember this correction for next time</span>

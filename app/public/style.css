@@ -692,6 +692,62 @@ details summary {
   color: var(--text-secondary);
 }
 
+.scan-label-section {
+  margin: 16px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.scan-label-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.label-status {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.label-status.scanning {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.label-status.scanned {
+  background: var(--accent-bg);
+  color: var(--text);
+}
+
+.label-status.scan-error {
+  background: var(--risk-high-bg);
+  color: var(--risk-high);
+}
+
+.label-values {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.food-label-source {
+  font-size: 12px;
+  color: var(--accent);
+  margin-top: 4px;
+  font-style: italic;
+}
+
 .modal-actions {
   display: flex;
   gap: 8px;

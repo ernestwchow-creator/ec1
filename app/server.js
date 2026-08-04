@@ -74,6 +74,7 @@ function buildFoodResult(food) {
     est_carbs_g_per_100g: food.est_carbs_g_per_100g ?? null,
     est_fiber_g_per_100g: food.est_fiber_g_per_100g ?? null,
     est_glycemic_index: food.est_glycemic_index ?? null,
+    source: food.source || null,
   };
 }
 
@@ -272,6 +273,81 @@ app.post("/api/recalculate", (req, res) => {
       gi_label: giLabel,
     },
   });
+});
+
+const LABEL_SCAN_PROMPT = `You are a nutritional label reader. Analyze this photo of a food product's nutritional label / nutrition facts panel.
+
+Extract the following values and normalize them to per 100g of the product. The label may show values per serving — use the serving size to convert to per-100g values.
+
+If a value is not listed on the label, estimate it based on the product type and ingredients visible. For oxalate: most commercial products have negligible oxalate (use 0) unless the ingredients include high-oxalate items like spinach, cocoa, nuts, or soy.
+
+Respond ONLY in this exact JSON format, no other text:
+{
+  "product_name": "the product name as shown on label",
+  "serving_size_g": 100,
+  "oxalate_mg_per_100g": 0,
+  "calcium_mg_per_100g": 20,
+  "carbs_g_per_100g": 45,
+  "fiber_g_per_100g": 2,
+  "glycemic_index": 65,
+  "ingredients_summary": "brief list of main ingredients"
+}
+
+For glycemic_index: estimate based on the carb content and type of product. High sugar/refined starch = 70+, moderate = 56-69, low sugar/high fiber/protein = 55 or below. Use 0 for zero-carb products.`;
+
+app.post("/api/scan-label", upload.single("label"), async (req, res) => {
+  try {
+    let imageData, mediaType;
+
+    if (req.file) {
+      imageData = req.file.buffer.toString("base64");
+      mediaType = req.file.mimetype;
+    } else if (req.body.image) {
+      const match = req.body.image.match(/^data:(.+);base64,(.+)$/);
+      if (!match) return res.status(400).json({ error: "Invalid image data" });
+      mediaType = match[1];
+      imageData = match[2];
+    } else {
+      return res.status(400).json({ error: "No image provided" });
+    }
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: imageData } },
+            { type: "text", text: LABEL_SCAN_PROMPT },
+          ],
+        },
+      ],
+    });
+
+    const responseText = response.content[0].text;
+    let parsed;
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      return res.status(500).json({ error: "Failed to parse label", raw: responseText });
+    }
+
+    res.json({
+      product_name: parsed.product_name || "Unknown product",
+      est_oxalate_mg_per_100g: parsed.oxalate_mg_per_100g ?? 0,
+      est_calcium_mg_per_100g: parsed.calcium_mg_per_100g ?? 0,
+      est_carbs_g_per_100g: parsed.carbs_g_per_100g ?? 0,
+      est_fiber_g_per_100g: parsed.fiber_g_per_100g ?? 0,
+      est_glycemic_index: parsed.glycemic_index ?? 0,
+      ingredients_summary: parsed.ingredients_summary || "",
+      source: "label",
+    });
+  } catch (err) {
+    console.error("Label scan error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/database", (_req, res) => {
