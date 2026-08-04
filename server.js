@@ -51,10 +51,19 @@ function grantedScopes(tokens) {
   return new Set(String(tokens.scope || '').split(/\s+/).filter(Boolean));
 }
 
-function hasDriveAccess(tokens) {
+// The two Drive features have different scope requirements and, crucially,
+// different standing with Google: drive.readonly is a *restricted* scope that a
+// published-but-unverified app cannot obtain, whereas drive.file is not
+// restricted and is granted normally. Gating both features on both scopes would
+// disable copying whenever search is unavailable, for no reason.
+function canSearchDrive(tokens) {
   const g = grantedScopes(tokens);
-  const has = (s) => g.has(SCOPE_BASE + s);
-  return has('drive') || (has('drive.readonly') && has('drive.file'));
+  return g.has(SCOPE_BASE + 'drive') || g.has(SCOPE_BASE + 'drive.readonly');
+}
+
+function canCreateCopy(tokens) {
+  const g = grantedScopes(tokens);
+  return g.has(SCOPE_BASE + 'drive') || g.has(SCOPE_BASE + 'drive.file');
 }
 
 // Google can grant a subset of what was requested — the consent screen offers
@@ -235,7 +244,8 @@ app.get('/api/me', (req, res) => {
     authenticated: !!tokens,
     // Drives whether the UI offers Drive browsing and the "save as a copy"
     // mode, or prompts to reconnect for the newer scopes.
-    driveEnabled: tokens ? hasDriveAccess(tokens) : false,
+    canSearch: tokens ? canSearchDrive(tokens) : false,
+    canCopy: tokens ? canCreateCopy(tokens) : false,
     scopes: tokens ? scopeReport(tokens) : null
   });
 });
@@ -280,7 +290,7 @@ app.get('/auth/status', (req, res) => {
 app.get('/api/drive/search', async (req, res) => {
   const tokens = readTokens(req, SECRET);
   if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
-  if (!hasDriveAccess(tokens)) {
+  if (!canSearchDrive(tokens)) {
     return res.status(403).json({
       error: 'Drive access has not been granted yet.',
       needsReauth: true
@@ -356,7 +366,7 @@ app.post('/api/transpose', async (req, res) => {
 
   const outputMode = mode === 'copy' ? 'copy' : 'append';
   const tokens = readTokens(req, SECRET);
-  if (outputMode === 'copy' && !hasDriveAccess(tokens)) {
+  if (outputMode === 'copy' && !canCreateCopy(tokens)) {
     return res.status(403).json({
       error: 'Creating a copy needs Drive access. Please reconnect your Google account.',
       needsReauth: true

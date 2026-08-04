@@ -618,13 +618,16 @@
       selectedChart: 0,
       semitones: 0,
       useFlats: false,
-      driveEnabled: false
+      canSearch: false,
+      canCopy: false,
+      scopes: null
     };
 
     async function checkAuth() {
       const res = await fetch('/api/me');
-      const { authenticated, driveEnabled, scopes } = await res.json();
-      state.driveEnabled = !!driveEnabled;
+      const { authenticated, canSearch, canCopy, scopes } = await res.json();
+      state.canSearch = !!canSearch;
+      state.canCopy = !!canCopy;
       state.scopes = scopes;
       applyDriveAvailability();
       const authArea = document.getElementById('auth-area');
@@ -647,28 +650,33 @@
       const copyOption = document.getElementById('mode-copy-option');
       const copyRadio = copyOption.querySelector('input');
 
-      browseBtn.disabled = !state.driveEnabled;
-      copyRadio.disabled = !state.driveEnabled;
-      copyOption.classList.toggle('disabled', !state.driveEnabled);
+      browseBtn.disabled = !state.canSearch;
+      copyRadio.disabled = !state.canCopy;
+      copyOption.classList.toggle('disabled', !state.canCopy);
 
-      if (state.driveEnabled) {
+      document.getElementById('copy-desc').textContent = state.canCopy
+        ? 'Makes a new document with the chart rewritten in the new key.'
+        : 'Needs Drive access — reconnect your Google account to enable this.';
+
+      if (!state.canCopy && copyRadio.checked) {
+        document.querySelector('input[name="mode"][value="append"]').checked = true;
+      }
+
+      if (state.canSearch && state.canCopy) {
         hint.innerHTML = '';
-        document.getElementById('copy-desc').textContent =
-          'Makes a new document with the chart rewritten in the new key.';
       } else {
-        const missing = (state.scopes && state.scopes.missing) || [];
-        const names = missing.map(s => s.replace('https://www.googleapis.com/auth/', ''));
+        const missing = ((state.scopes && state.scopes.missing) || [])
+          .map(s => s.replace('https://www.googleapis.com/auth/', ''));
+        // Say which feature is unavailable rather than lumping them together —
+        // searching and copying can be granted independently.
+        const lacking = [!state.canSearch && 'browse Drive', !state.canCopy && 'save copies']
+          .filter(Boolean).join(' and ');
         hint.innerHTML =
-          '<a href="/auth">Reconnect Google</a> to browse Drive and save copies' +
-          (names.length
-            ? ' &middot; <span class="hint-detail">not granted: ' +
-              escapeHtml(names.join(', ')) + ' &middot; <a href="/auth/status">details</a></span>'
-            : ' &middot; <a href="/auth/status">details</a>');
-        document.getElementById('copy-desc').textContent =
-          'Needs Drive access — reconnect your Google account to enable this.';
-        if (copyRadio.checked) {
-          document.querySelector('input[name="mode"][value="append"]').checked = true;
-        }
+          '<a href="/auth">Reconnect Google</a> to ' + lacking +
+          (missing.length
+            ? ' &middot; <span class="hint-detail">not granted: ' + escapeHtml(missing.join(', ')) + '</span>'
+            : '') +
+          ' &middot; <a href="/auth/status">details</a>';
       }
       updateModeUI();
     }
