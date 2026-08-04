@@ -324,6 +324,14 @@ function renderResults(data) {
 
   $("#meal-description").textContent = data.meal_description || "";
 
+  const thumb = $("#results-photo-thumb");
+  if (capturedImage) {
+    thumb.src = capturedImage;
+    thumb.style.display = "block";
+  } else {
+    thumb.style.display = "none";
+  }
+
   const banner = $("#risk-banner");
   const ca = data.calcium_recommendation;
   const needsSupplement = ca.supplement_calcium_mg > 0;
@@ -952,6 +960,21 @@ toastStyle.textContent = `
 .toast-info { background: var(--primary); color: white; }
 .toast.visible { opacity: 1; transform: translateY(0); }`;
 document.head.appendChild(toastStyle);
+
+// -- Photo Overlay --
+const photoOverlay = $("#photo-overlay");
+const overlayPhoto = $("#overlay-photo");
+
+$("#results-photo-thumb").addEventListener("click", () => {
+  if (!capturedImage) return;
+  overlayPhoto.src = capturedImage;
+  photoOverlay.classList.remove("hidden");
+});
+
+$("#overlay-close").addEventListener("click", () => photoOverlay.classList.add("hidden"));
+photoOverlay.addEventListener("click", (e) => {
+  if (e.target === photoOverlay) photoOverlay.classList.add("hidden");
+});
 
 // -- Init --
 loadReference();

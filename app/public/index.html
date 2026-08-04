@@ -112,8 +112,13 @@
     </section>
 
     <section id="results-section" class="hidden">
-      <h2>Analysis Results</h2>
-      <p id="meal-description" class="meal-desc"></p>
+      <div class="results-header">
+        <div>
+          <h2>Analysis Results</h2>
+          <p id="meal-description" class="meal-desc"></p>
+        </div>
+        <img id="results-photo-thumb" class="results-thumb" alt="Analyzed photo">
+      </div>
 
       <div id="section-oxalate">
         <div id="risk-banner" class="risk-banner"></div>
@@ -302,6 +307,12 @@
         <button id="ai-info-close" class="primary-btn">Got it</button>
       </div>
     </div>
+  </div>
+
+  <!-- Photo overlay -->
+  <div id="photo-overlay" class="photo-overlay hidden">
+    <img id="overlay-photo" alt="Full photo">
+    <button id="overlay-close" class="overlay-close">&times;</button>
   </div>
 
   <script src="app.js"></script>
