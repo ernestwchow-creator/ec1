@@ -28,12 +28,24 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+const REDIRECT_URI = `${BASE_URL}/auth/callback`;
+
 function getOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    `${BASE_URL}/auth/callback`
+    REDIRECT_URI
   );
+}
+
+// The redirect URI is derived from BASE_URL, so if BASE_URL does not match the
+// origin the browser actually used, the flow is already broken: Google rejects
+// it with redirect_uri_mismatch, or succeeds and then sends the user to the
+// wrong origin where the session cookie does not exist. Catch it here, where we
+// can say what is wrong, rather than at Google, where the error is opaque.
+function originMismatch(req) {
+  const actual = `${req.protocol}://${req.get('host')}`;
+  return actual === BASE_URL ? null : { actual, configured: BASE_URL };
 }
 
 // Builds an authenticated client from the cookie. googleapis silently exchanges
@@ -72,6 +84,17 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// Diagnostics are often read on a phone, so give them a readable shell.
+function configPage(body) {
+  return `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>Configuration error</title>` +
+    `<style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;` +
+    `max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1a1a2e}` +
+    `code{background:#f0f0f5;padding:.15rem .4rem;border-radius:4px;` +
+    `word-break:break-all;font-size:.9em}h1{font-size:1.3rem}h2{font-size:1.05rem;margin-top:1.5rem}` +
+    `li{margin:.5rem 0}</style>` + body;
+}
+
 // Distinguishes "never set" from "set to an empty/placeholder value", and lists
 // the names of any similar-looking variables so a typo in the key is visible.
 // Only names are ever shown — never values.
@@ -101,10 +124,7 @@ app.get('/auth', (req, res) => {
   // actually wrong instead.
   const { problems, similar } = diagnoseConfig();
   if (problems.length) {
-    return res.status(500).send(
-      `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-      `<style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1a1a2e}` +
-      `code{background:#f0f0f5;padding:.1rem .35rem;border-radius:4px}li{margin:.4rem 0}</style>` +
+    return res.status(500).send(configPage(
       `<h1>Configuration error</h1><ul>` +
       problems.map(p => `<li><code>${escapeHtml(p.key)}</code> &mdash; ${escapeHtml(p.issue)}</li>`).join('') +
       `</ul>` +
@@ -117,6 +137,26 @@ app.get('/auth', (req, res) => {
       `environment settings, then redeploy. In <code>render.yaml</code>, ` +
       `<code>sync: false</code> only marks a variable as a secret to be entered ` +
       `in the dashboard &mdash; it is not itself a value.</p>`
+    ));
+  }
+
+  const mismatch = originMismatch(req);
+  if (mismatch) {
+    return res.status(500).send(
+      configPage(
+        `<h1>Configuration error</h1>` +
+        `<p>This app is being used at <code>${escapeHtml(mismatch.actual)}</code>, ` +
+        `but <code>BASE_URL</code> is set to <code>${escapeHtml(mismatch.configured)}</code>.</p>` +
+        `<p>Sign-in would fail with <code>redirect_uri_mismatch</code>, because the app ` +
+        `would ask Google to return to <code>${escapeHtml(REDIRECT_URI)}</code>.</p>` +
+        `<h2>Fix</h2><ol>` +
+        `<li>Set <code>BASE_URL</code> to exactly:<br><code>${escapeHtml(mismatch.actual)}</code></li>` +
+        `<li>Add this to <b>Authorized redirect URIs</b> in the Google Cloud console:<br>` +
+        `<code>${escapeHtml(mismatch.actual)}/auth/callback</code></li>` +
+        `<li>Redeploy.</li></ol>` +
+        `<p>Both must match character for character &mdash; no trailing slash on ` +
+        `<code>BASE_URL</code>, and <code>https</code> not <code>http</code> once deployed.</p>`
+      )
     );
   }
 
@@ -238,7 +278,14 @@ app.post('/api/transpose', async (req, res) => {
 // (and from the host platform's proxy when deployed).
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Chord Transposer running on port ${PORT}`);
-  console.log(`Base URL: ${BASE_URL}`);
+  console.log(`Base URL:     ${BASE_URL}`);
+  // Printed so it can be copied straight into the Google Cloud console; a
+  // mismatch here is the single most common cause of a failed sign-in.
+  console.log(`Redirect URI: ${REDIRECT_URI}`);
+  if (!process.env.BASE_URL) {
+    console.warn('WARNING: BASE_URL is not set, so the redirect URI above points at localhost.');
+    console.warn('         Set BASE_URL to the public https origin when deploying.');
+  }
   if (!process.env.GOOGLE_CLIENT_ID) {
     console.warn('WARNING: GOOGLE_CLIENT_ID is not set. Copy .env.example to .env and fill it in.');
   }

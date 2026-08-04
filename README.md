@@ -173,9 +173,26 @@ in. On Render, set it under **Environment** and redeploy; locally, check
 missing.
 
 **`Error 400: redirect_uri_mismatch`**
-`BASE_URL` and the **Authorized redirect URI** in Google Cloud disagree. They
-must match exactly, including `https://` and with no trailing slash on
-`BASE_URL`.
+The redirect URI the app sent is not one of the **Authorized redirect URIs**
+registered on the OAuth client. The app derives it from `BASE_URL`, so the
+usual cause is `BASE_URL` being unset on the host — it then falls back to
+`http://localhost:3000` and asks Google to return there.
+
+The app prints the exact URI it will use at startup, so check the host's logs:
+
+```
+Base URL:     https://your-app.onrender.com
+Redirect URI: https://your-app.onrender.com/auth/callback
+```
+
+That `Redirect URI` line is the string that must appear verbatim in Google
+Cloud under **Credentials → your OAuth client → Authorized redirect URIs**.
+Common mismatches: `http` instead of `https`, a trailing slash, a missing
+`/auth/callback`, or the wrong subdomain.
+
+If you open `/auth` from an origin that disagrees with `BASE_URL`, the app now
+detects it first and shows both values along with the exact string to
+register, instead of handing you Google's generic error.
 
 **Signed out every 7 days**
 The OAuth consent screen is still in *Testing* mode, where Google expires
