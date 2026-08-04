@@ -359,6 +359,7 @@ function renderResults(data) {
   }
 
   renderFoodList(data.foods);
+  $("#add-food-btn").classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -443,6 +444,7 @@ const labelInput = $("#label-input");
 const labelStatus = $("#label-status");
 
 let correctionIndex = -1;
+let addMode = false;
 let currentUnit = "g";
 let scannedLabel = null;
 
@@ -466,7 +468,9 @@ function displayToGrams(val, unit, category) {
 }
 
 function getWeightInGrams() {
-  if (correctionIndex < 0 || !currentResults) return parseInt(weightInput.value) || 100;
+  if (correctionIndex < 0 || !currentResults) {
+    return displayToGrams(parseFloat(weightInput.value) || 100, currentUnit, "unknown");
+  }
   const food = currentResults.foods[correctionIndex];
   return displayToGrams(parseFloat(weightInput.value) || 0, currentUnit, food.category);
 }
@@ -528,6 +532,10 @@ function openCorrectionModal(index) {
 function closeModal() {
   modal.classList.add("hidden");
   correctionIndex = -1;
+  if (addMode) {
+    addMode = false;
+    saveWeightBtn.textContent = "Save Weight Only";
+  }
 }
 
 async function applyCorrection(newName, newWeight) {
@@ -587,9 +595,104 @@ async function applyCorrection(newName, newWeight) {
     currentResults.calcium_recommendation = data.calcium_recommendation;
     currentResults.carb_summary = data.carb_summary;
     currentResults.fpu_summary = data.fpu_summary;
+    currentResults.meal_description = data.foods.map(f => f.name).join(", ");
     renderResults(currentResults);
   } catch (err) {
     showError("Recalculation failed: " + err.message);
+  }
+}
+
+function openAddFoodModal() {
+  if (!currentResults) return;
+  addMode = true;
+  correctionIndex = -1;
+
+  modalPrompt.textContent = "Add a food that was missed in the photo";
+  weightInput.value = 100;
+  currentUnit = "g";
+  $(".weight-unit").textContent = "g";
+  document.querySelectorAll(".unit-btn").forEach(b => b.classList.toggle("active", b.dataset.unit === "g"));
+  weightInput.step = "5";
+  const deltas = [[-25, "-25"], [-10, "-10"], [10, "+10"], [25, "+25"]];
+  document.querySelectorAll(".weight-adj").forEach((btn, i) => {
+    btn.dataset.delta = deltas[i][0];
+    btn.textContent = deltas[i][1];
+  });
+
+  modalAlts.innerHTML = "";
+  rememberCheck.checked = false;
+  customInput.value = "";
+  scannedLabel = null;
+  labelStatus.classList.add("hidden");
+  labelStatus.className = "label-status hidden";
+  labelInput.value = "";
+  saveWeightBtn.textContent = "Add Food";
+  modal.classList.remove("hidden");
+  customInput.focus();
+}
+
+async function addFood(name, weightGrams) {
+  if (!currentResults) return;
+
+  const estimates = scannedLabel ? {
+    est_oxalate_mg_per_100g: scannedLabel.est_oxalate_mg_per_100g,
+    est_calcium_mg_per_100g: scannedLabel.est_calcium_mg_per_100g,
+    est_carbs_g_per_100g: scannedLabel.est_carbs_g_per_100g,
+    est_fiber_g_per_100g: scannedLabel.est_fiber_g_per_100g,
+    est_fat_g_per_100g: scannedLabel.est_fat_g_per_100g,
+    est_protein_g_per_100g: scannedLabel.est_protein_g_per_100g,
+    est_glycemic_index: scannedLabel.est_glycemic_index,
+    source: "label",
+  } : {};
+
+  const foodList = currentResults.foods.map(f => ({
+    name: f.name,
+    weight_grams: f.weight_grams,
+    confidence: f.confidence,
+    alternatives: f.alternatives || [],
+    enclosed: f.enclosed || false,
+    enclosed_in: f.enclosed_in || null,
+    est_oxalate_mg_per_100g: f.est_oxalate_mg_per_100g ?? null,
+    est_calcium_mg_per_100g: f.est_calcium_mg_per_100g ?? null,
+    est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
+    est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
+    est_fat_g_per_100g: f.est_fat_g_per_100g ?? null,
+    est_protein_g_per_100g: f.est_protein_g_per_100g ?? null,
+    est_glycemic_index: f.est_glycemic_index ?? null,
+    source: f.source || null,
+  }));
+
+  foodList.push({
+    name,
+    weight_grams: weightGrams,
+    confidence: "high",
+    alternatives: [],
+    enclosed: false,
+    enclosed_in: null,
+    est_oxalate_mg_per_100g: estimates.est_oxalate_mg_per_100g ?? null,
+    est_calcium_mg_per_100g: estimates.est_calcium_mg_per_100g ?? null,
+    est_carbs_g_per_100g: estimates.est_carbs_g_per_100g ?? null,
+    est_fiber_g_per_100g: estimates.est_fiber_g_per_100g ?? null,
+    est_fat_g_per_100g: estimates.est_fat_g_per_100g ?? null,
+    est_protein_g_per_100g: estimates.est_protein_g_per_100g ?? null,
+    est_glycemic_index: estimates.est_glycemic_index ?? null,
+    source: estimates.source || null,
+  });
+
+  closeModal();
+
+  try {
+    const data = await recalculateFromFoods(foodList);
+    currentResults.foods = data.foods;
+    currentResults.total_oxalate_mg = data.total_oxalate_mg;
+    currentResults.risk_level = data.risk_level;
+    currentResults.calcium_recommendation = data.calcium_recommendation;
+    currentResults.carb_summary = data.carb_summary;
+    currentResults.fpu_summary = data.fpu_summary;
+    currentResults.meal_description = data.foods.map(f => f.name).join(", ");
+    renderResults(currentResults);
+  } catch (err) {
+    showError("Failed to add food: " + err.message);
   }
 }
 
@@ -608,6 +711,11 @@ document.querySelectorAll(".weight-adj").forEach((btn) => {
 document.querySelectorAll(".unit-btn").forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (addMode) {
+      const g = getWeightInGrams();
+      setUnitDisplay(btn.dataset.unit, { weight_grams: g, category: "unknown" });
+      return;
+    }
     if (correctionIndex < 0 || !currentResults) return;
     const food = currentResults.foods[correctionIndex];
     const currentGrams = getWeightInGrams();
@@ -617,6 +725,12 @@ document.querySelectorAll(".unit-btn").forEach((btn) => {
 });
 
 saveWeightBtn.addEventListener("click", () => {
+  if (addMode) {
+    const name = customInput.value.trim();
+    if (!name) { showError("Enter a food name"); return; }
+    addFood(name, getWeightInGrams());
+    return;
+  }
   if (correctionIndex < 0 || !currentResults) return;
   const food = currentResults.foods[correctionIndex];
   applyCorrection(food.name, getWeightInGrams());
@@ -626,12 +740,16 @@ modalBackdrop.addEventListener("click", closeModal);
 cancelBtn.addEventListener("click", closeModal);
 customBtn.addEventListener("click", () => {
   const val = customInput.value.trim();
-  if (val) applyCorrection(val, getWeightInGrams());
+  if (!val) return;
+  if (addMode) { addFood(val, getWeightInGrams()); return; }
+  applyCorrection(val, getWeightInGrams());
 });
 customInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     const val = customInput.value.trim();
-    if (val) applyCorrection(val, getWeightInGrams());
+    if (!val) return;
+    if (addMode) { addFood(val, getWeightInGrams()); return; }
+    applyCorrection(val, getWeightInGrams());
   }
 });
 
@@ -703,6 +821,9 @@ if (clearMemBtn) {
     showToast("Food memory cleared");
   });
 }
+
+// -- Add Missing Food --
+$("#add-food-btn").addEventListener("click", openAddFoodModal);
 
 // -- New Analysis --
 $("#new-analysis-btn").addEventListener("click", resetCapture);

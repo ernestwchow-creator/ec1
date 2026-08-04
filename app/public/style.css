@@ -611,6 +611,13 @@ details summary {
   margin-top: 6px;
 }
 
+.add-food-btn {
+  margin-bottom: 12px;
+  font-size: 13px;
+  padding: 10px 16px;
+  width: 100%;
+}
+
 .food-enclosed {
   border-left: 3px solid var(--risk-moderate);
 }
