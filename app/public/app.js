@@ -18,6 +18,54 @@ if (isIOS && !isStandalone && !sessionStorage.getItem("install_dismissed")) {
   });
 }
 
+// -- Food Memory (corrections stored in localStorage) --
+const MEMORY_KEY = "oxacheck_food_memory";
+
+function loadMemory() {
+  try {
+    return JSON.parse(localStorage.getItem(MEMORY_KEY)) || {};
+  } catch { return {}; }
+}
+
+function saveMemory(mem) {
+  localStorage.setItem(MEMORY_KEY, JSON.stringify(mem));
+}
+
+function rememberCorrection(originalName, correctedName) {
+  const mem = loadMemory();
+  const key = originalName.toLowerCase().trim();
+  if (key === correctedName.toLowerCase().trim()) {
+    delete mem[key];
+  } else {
+    mem[key] = correctedName;
+  }
+  saveMemory(mem);
+}
+
+function recallCorrection(name) {
+  const mem = loadMemory();
+  return mem[name.toLowerCase().trim()] || null;
+}
+
+function applyMemoryToResults(foods) {
+  let changed = false;
+  const updated = foods.map((f) => {
+    const remembered = recallCorrection(f.name);
+    if (remembered && remembered.toLowerCase() !== f.name.toLowerCase()) {
+      changed = true;
+      return {
+        ...f,
+        original_name: f.name,
+        name: remembered,
+        confidence: "high",
+        auto_corrected: true,
+      };
+    }
+    return f;
+  });
+  return { foods: updated, changed };
+}
+
 // -- State --
 let capturedImage = null;
 let currentResults = null;
@@ -112,8 +160,18 @@ analyzeBtn.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    currentResults = data;
-    renderResults(data);
+
+    // Apply remembered corrections
+    const { foods: correctedFoods, changed } = applyMemoryToResults(data.foods);
+    if (changed) {
+      const recalc = await recalculateFromFoods(correctedFoods);
+      currentResults = { ...data, ...recalc };
+      currentResults.meal_description = data.meal_description;
+    } else {
+      currentResults = data;
+    }
+
+    renderResults(currentResults);
   } catch (err) {
     showError(err.message);
     $("#capture-section").classList.remove("hidden");
@@ -121,6 +179,26 @@ analyzeBtn.addEventListener("click", async () => {
     $("#loading-section").classList.add("hidden");
   }
 });
+
+async function recalculateFromFoods(foods) {
+  const foodList = foods.map((f) => ({
+    name: f.name,
+    weight_grams: f.weight_grams,
+    confidence: f.confidence,
+    alternatives: f.alternatives || [],
+    enclosed: f.enclosed || false,
+    enclosed_in: f.enclosed_in || null,
+  }));
+
+  const res = await fetch("/api/recalculate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ foods: foodList }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  return data;
+}
 
 // -- Render Results --
 function renderResults(data) {
@@ -168,7 +246,6 @@ function renderResults(data) {
   const giClass = { high: "risk-high", medium: "risk-moderate", low: "risk-low" }[carbs.gi_label] || "";
   giBanner.className = "gi-banner " + giClass;
 
-  // Food details
   renderFoodList(data.foods);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -187,9 +264,13 @@ function renderFoodList(foods) {
 
       const hasAlts = f.alternatives && f.alternatives.length > 0;
       const confLabel = f.confidence !== "high" ? ` · ${f.confidence} confidence` : "";
+      const enclosedLabel = f.enclosed ? ` · filling of ${esc(f.enclosed_in || "enclosed food")}` : "";
+      const autoCorrected = f.auto_corrected
+        ? `<div class="food-auto-corrected">Auto-corrected from "${esc(f.original_name)}" (remembered)</div>`
+        : "";
 
       return `
-      <div class="food-item" data-index="${i}">
+      <div class="food-item${f.enclosed ? " food-enclosed" : ""}" data-index="${i}">
         <div class="food-item-header">
           <span class="food-name">${esc(f.name)}</span>
           <span class="food-oxalate">${f.estimated_oxalate_mg !== null ? f.estimated_oxalate_mg + " mg ox" : "?"}</span>
@@ -198,12 +279,13 @@ function renderFoodList(foods) {
           ~${f.weight_grams}g
           ${f.dietary_calcium_mg !== null ? ` · ${f.dietary_calcium_mg} mg Ca` : ""}
           ${f.oxalate_range_mg ? ` · Ox range: ${f.oxalate_range_mg[0]}–${f.oxalate_range_mg[1]} mg` : ""}
-          ${confLabel}
+          ${confLabel}${enclosedLabel}
         </div>
         ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
         ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
         ${!f.in_database ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
-        ${hasAlts || f.confidence !== "high" ? `<div class="food-correction-hint">Tap to correct</div>` : ""}
+        ${autoCorrected}
+        ${f.enclosed ? `<div class="food-correction-hint">Tap to change filling</div>` : hasAlts || f.confidence !== "high" ? `<div class="food-correction-hint">Tap to correct</div>` : `<div class="food-correction-hint">Tap to change</div>`}
         ${f.in_database ? `<div class="oxalate-bar"><div class="oxalate-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ""}
       </div>`;
     })
@@ -222,6 +304,7 @@ const modalPrompt = $("#modal-prompt");
 const customInput = $("#custom-food-input");
 const customBtn = $("#custom-food-btn");
 const cancelBtn = $("#modal-cancel");
+const rememberCheck = $("#remember-check");
 
 let correctionIndex = -1;
 
@@ -230,7 +313,11 @@ function openCorrectionModal(index) {
   const food = currentResults.foods[index];
   correctionIndex = index;
 
-  modalPrompt.textContent = `Identified as "${food.name}" (~${food.weight_grams}g). Select the correct food:`;
+  if (food.enclosed) {
+    modalPrompt.textContent = `Guessed filling of ${food.enclosed_in || "enclosed food"}: "${food.name}" (~${food.weight_grams}g). What is actually inside?`;
+  } else {
+    modalPrompt.textContent = `Identified as "${food.name}" (~${food.weight_grams}g). Select the correct food:`;
+  }
 
   const alts = food.alternatives || [];
   const allOptions = [food.name, ...alts];
@@ -247,6 +334,7 @@ function openCorrectionModal(index) {
     btn.addEventListener("click", () => applyCorrection(btn.dataset.name));
   });
 
+  rememberCheck.checked = true;
   customInput.value = "";
   modal.classList.remove("hidden");
 }
@@ -259,30 +347,31 @@ function closeModal() {
 async function applyCorrection(newName) {
   if (correctionIndex < 0 || !currentResults) return;
 
+  const originalName = currentResults.foods[correctionIndex].name;
+
+  if (rememberCheck.checked && newName.toLowerCase() !== originalName.toLowerCase()) {
+    const keyName = currentResults.foods[correctionIndex].original_name || originalName;
+    rememberCorrection(keyName, newName);
+  }
+
   const foodList = currentResults.foods.map((f, i) => ({
     name: i === correctionIndex ? newName : f.name,
     weight_grams: f.weight_grams,
     confidence: i === correctionIndex ? "high" : f.confidence,
     alternatives: i === correctionIndex ? [] : (f.alternatives || []),
+    enclosed: i === correctionIndex ? false : (f.enclosed || false),
+    enclosed_in: i === correctionIndex ? null : (f.enclosed_in || null),
   }));
 
   closeModal();
 
   try {
-    const res = await fetch("/api/recalculate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ foods: foodList }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
+    const data = await recalculateFromFoods(foodList);
     currentResults.foods = data.foods;
     currentResults.total_oxalate_mg = data.total_oxalate_mg;
     currentResults.risk_level = data.risk_level;
     currentResults.calcium_recommendation = data.calcium_recommendation;
     currentResults.carb_summary = data.carb_summary;
-
     renderResults(currentResults);
   } catch (err) {
     showError("Recalculation failed: " + err.message);
@@ -301,6 +390,15 @@ customInput.addEventListener("keydown", (e) => {
     if (val) applyCorrection(val);
   }
 });
+
+// -- Memory Management --
+const clearMemBtn = $("#clear-memory-btn");
+if (clearMemBtn) {
+  clearMemBtn.addEventListener("click", () => {
+    localStorage.removeItem(MEMORY_KEY);
+    showError("Food memory cleared");
+  });
+}
 
 // -- New Analysis --
 $("#new-analysis-btn").addEventListener("click", resetCapture);
@@ -352,6 +450,14 @@ async function loadReference() {
   }
 }
 
+// -- Render memory count --
+function updateMemoryCount() {
+  const mem = loadMemory();
+  const count = Object.keys(mem).length;
+  const el = $("#memory-count");
+  if (el) el.textContent = count > 0 ? `${count} correction${count !== 1 ? "s" : ""} remembered` : "No corrections saved";
+}
+
 // -- Error toast styles --
 const toastStyle = document.createElement("style");
 toastStyle.textContent = `
@@ -372,3 +478,4 @@ document.head.appendChild(toastStyle);
 
 // -- Init --
 loadReference();
+updateMemoryCount();

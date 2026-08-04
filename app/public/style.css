@@ -549,6 +549,44 @@ details summary {
   margin-top: 6px;
 }
 
+.food-enclosed {
+  border-left: 3px solid var(--risk-moderate);
+}
+
+.food-auto-corrected {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+.remember-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.remember-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+#memory-section {
+  margin-top: 16px;
+}
+
+.memory-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
 /* Correction modal */
 .modal {
   position: fixed;

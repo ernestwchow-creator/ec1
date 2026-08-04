@@ -139,6 +139,15 @@
       <button id="new-analysis-btn" class="primary-btn full-width">New Analysis</button>
     </section>
 
+    <section id="memory-section">
+      <details>
+        <summary>Food Memory</summary>
+        <p id="memory-count" class="memory-info">No corrections saved</p>
+        <p class="memory-info">When you correct a food identification, the app remembers your choice and auto-applies it next time.</p>
+        <button id="clear-memory-btn" class="secondary-btn full-width">Clear All Remembered Corrections</button>
+      </details>
+    </section>
+
     <section id="reference-section">
       <details>
         <summary>Oxalate Reference Database</summary>
@@ -166,6 +175,10 @@
         <input type="text" id="custom-food-input" placeholder="Or type a food name...">
         <button id="custom-food-btn" class="primary-btn">Use This</button>
       </div>
+      <label class="remember-label">
+        <input type="checkbox" id="remember-check" checked>
+        <span>Remember this correction for next time</span>
+      </label>
       <button id="modal-cancel" class="secondary-btn full-width">Cancel</button>
     </div>
   </div>

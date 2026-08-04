@@ -47,6 +47,8 @@ function buildFoodResult(food) {
     weight_grams: w,
     confidence: food.confidence,
     alternatives: food.alternatives || [],
+    enclosed: food.enclosed || false,
+    enclosed_in: food.enclosed_in || null,
     in_database: !!dbEntry,
     database_name: dbEntry?.name || null,
     oxalate_per_100g: oxPer100,
@@ -86,13 +88,22 @@ For each food item, provide:
 1. The food name (use common names, be specific — e.g., "spinach" not "greens", "tofu" not "white cubes")
 2. The estimated weight in grams of the portion visible
 3. Your confidence level
-4. If confidence is NOT "high", provide 2-3 alternative identifications that it could be
+4. If confidence is NOT "high", provide 2-3 alternative identifications
+5. Whether the food is "enclosed" (filling hidden inside)
+
+IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings, burritos, wraps, spring rolls, samosas, ravioli, calzones, stuffed peppers, sushi rolls, sandwiches, or any food where the filling is hidden:
+- Set "enclosed" to true
+- Break down into the wrapper/shell AND your best guess at the filling ingredients as separate items
+- Base your filling guess on the type of food, visible clues (color, shape, leaking filling), and common regional preparations
+- Set filling ingredients to "low" confidence with alternatives listing other common fillings for that type of food
+- Estimate filling weight as roughly 60-70% of total weight, wrapper as 30-40%
 
 Respond ONLY in this exact JSON format, no other text:
 {
   "foods": [
-    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [] },
-    { "name": "best guess", "weight_grams": 80, "confidence": "medium", "alternatives": ["alternative 1", "alternative 2"] }
+    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false },
+    { "name": "empanada shell", "weight_grams": 40, "confidence": "high", "alternatives": [], "enclosed": false },
+    { "name": "beef", "weight_grams": 70, "confidence": "low", "alternatives": ["chicken", "cheese", "beans"], "enclosed": true, "enclosed_in": "empanada" }
   ],
   "meal_description": "Brief description of the meal"
 }
