@@ -65,17 +65,58 @@ function isAuthFailure(err) {
     (reason.includes('invalid_grant') || reason.includes('invalid_token'));
 }
 
+const REQUIRED_VARS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// Distinguishes "never set" from "set to an empty/placeholder value", and lists
+// the names of any similar-looking variables so a typo in the key is visible.
+// Only names are ever shown — never values.
+function diagnoseConfig() {
+  const problems = [];
+  for (const key of REQUIRED_VARS) {
+    const val = process.env[key];
+    if (val === undefined) problems.push({ key, issue: 'not set' });
+    else if (!val.trim()) problems.push({ key, issue: 'set but empty' });
+    else if (/^(sync:|false$|your_|<|changeme)/i.test(val.trim())) {
+      problems.push({ key, issue: 'looks like a placeholder rather than a real credential' });
+    } else if (key === 'GOOGLE_CLIENT_ID' && !val.trim().endsWith('.apps.googleusercontent.com')) {
+      problems.push({ key, issue: 'does not look like a client ID (should end in .apps.googleusercontent.com)' });
+    }
+  }
+  // Deliberately narrow: matching a bare /SECRET/ would surface unrelated
+  // platform variables and bury a genuine typo in noise.
+  const similar = Object.keys(process.env)
+    .filter(k => !REQUIRED_VARS.includes(k) && /GOOGLE|CLIENT/i.test(k))
+    .sort();
+  return { problems, similar };
+}
+
 app.get('/auth', (req, res) => {
   // Without credentials the generated URL omits client_id and Google answers
   // with an opaque "Missing required parameter: client_id" page. Say what is
   // actually wrong instead.
-  const missing = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'].filter(k => !process.env[k]);
-  if (missing.length) {
+  const { problems, similar } = diagnoseConfig();
+  if (problems.length) {
     return res.status(500).send(
-      `<h1>Configuration error</h1>` +
-      `<p>Not set on the server: <code>${missing.join('</code>, <code>')}</code></p>` +
-      `<p>Set ${missing.length > 1 ? 'them' : 'it'} in your host's environment settings ` +
-      `(or in <code>.env</code> locally) and redeploy.</p>`
+      `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+      `<style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1a1a2e}` +
+      `code{background:#f0f0f5;padding:.1rem .35rem;border-radius:4px}li{margin:.4rem 0}</style>` +
+      `<h1>Configuration error</h1><ul>` +
+      problems.map(p => `<li><code>${escapeHtml(p.key)}</code> &mdash; ${escapeHtml(p.issue)}</li>`).join('') +
+      `</ul>` +
+      (similar.length
+        ? `<p>Other variables that look related (names only): <code>` +
+          similar.map(escapeHtml).join('</code>, <code>') + `</code>. ` +
+          `If one of these is a misspelling of the names above, rename it.</p>`
+        : '') +
+      `<p>Set the real values from the Google Cloud console under your host's ` +
+      `environment settings, then redeploy. In <code>render.yaml</code>, ` +
+      `<code>sync: false</code> only marks a variable as a secret to be entered ` +
+      `in the dashboard &mdash; it is not itself a value.</p>`
     );
   }
 
