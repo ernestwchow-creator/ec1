@@ -57,6 +57,20 @@ function hasDriveAccess(tokens) {
   return has('drive') || (has('drive.readonly') && has('drive.file'));
 }
 
+// Google can grant a subset of what was requested — the consent screen offers
+// per-permission checkboxes, and a published-but-unverified app is refused
+// restricted scopes outright. Both look identical from the app's side, so
+// report exactly what came back rather than guessing.
+function scopeReport(tokens) {
+  const granted = grantedScopes(tokens);
+  return {
+    granted: [...granted].sort(),
+    missing: SCOPES.filter(s => !granted.has(s)),
+    // An older token predating this field entirely.
+    unknown: !tokens.scope
+  };
+}
+
 function getOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -112,9 +126,9 @@ function escapeHtml(s) {
 }
 
 // Diagnostics are often read on a phone, so give them a readable shell.
-function configPage(body) {
+function configPage(body, title = 'Configuration error') {
   return `<meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<title>Configuration error</title>` +
+    `<title>${escapeHtml(title)}</title>` +
     `<style>body{font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;` +
     `max-width:40rem;margin:2rem auto;padding:0 1rem;color:#1a1a2e}` +
     `code{background:#f0f0f5;padding:.15rem .4rem;border-radius:4px;` +
@@ -221,8 +235,46 @@ app.get('/api/me', (req, res) => {
     authenticated: !!tokens,
     // Drives whether the UI offers Drive browsing and the "save as a copy"
     // mode, or prompts to reconnect for the newer scopes.
-    driveEnabled: tokens ? hasDriveAccess(tokens) : false
+    driveEnabled: tokens ? hasDriveAccess(tokens) : false,
+    scopes: tokens ? scopeReport(tokens) : null
   });
+});
+
+// Shows what Google actually granted versus what was asked for. Scope URLs are
+// not secrets, and this is the only way to tell a declined permission apart
+// from a scope Google refused to issue at all.
+app.get('/auth/status', (req, res) => {
+  const tokens = readTokens(req, SECRET);
+  if (!tokens) {
+    return res.status(401).send(configPage(
+      `<h1>Not signed in</h1><p><a href="/auth">Sign in with Google</a></p>`,
+      'Google connection'
+    ));
+  }
+
+  const { granted, missing, unknown } = scopeReport(tokens);
+  const short = (s) => s.replace(SCOPE_BASE, '');
+
+  res.send(configPage(
+    `<h1>Google connection</h1>` +
+    `<h2>Granted</h2>` +
+    (granted.length
+      ? `<ul>${granted.map(s => `<li><code>${escapeHtml(short(s))}</code></li>`).join('')}</ul>`
+      : `<p>None reported${unknown ? ' — this sign-in predates scope tracking, so reconnecting will refresh it.' : '.'}</p>`) +
+    `<h2>Missing</h2>` +
+    (missing.length
+      ? `<ul>${missing.map(s => `<li><code>${escapeHtml(short(s))}</code></li>`).join('')}</ul>` +
+        `<p>If <code>drive.readonly</code> is missing while the others are present, ` +
+        `it is a <b>restricted</b> scope: Google refuses to issue it to an app whose ` +
+        `publishing status is <i>In production</i> without verification. Setting the ` +
+        `OAuth consent screen back to <i>Testing</i> (and listing yourself as a test ` +
+        `user) allows it.</p>` +
+        `<p>If several are missing, the consent screen's per-permission checkboxes ` +
+        `were likely left unticked — reconnect and accept all of them.</p>`
+      : `<p>Nothing missing.</p>`) +
+    `<p><a href="/auth">Reconnect Google</a> &middot; <a href="/">Back to the app</a></p>`,
+    'Google connection'
+  ));
 });
 
 app.get('/api/drive/search', async (req, res) => {
