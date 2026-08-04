@@ -133,6 +133,97 @@
     .btn.success:active { background: #00a381; }
     .btn.full { width: 100%; }
 
+    .btn.secondary {
+      background: #fff;
+      color: #6c5ce7;
+      border: 2px solid #ddd;
+    }
+    .btn.secondary:active { background: #f0edff; border-color: #6c5ce7; }
+    .btn.secondary.open { border-color: #6c5ce7; background: #f0edff; }
+
+    .or-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .browser {
+      margin-top: 0.85rem;
+      border: 2px solid #eee;
+      border-radius: 10px;
+      padding: 0.85rem;
+      background: #fafafe;
+    }
+
+    .browser input {
+      width: 100%;
+      min-height: 48px;
+      padding: 0.7rem 1rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .browser input:focus { border-color: #6c5ce7; }
+
+    .drive-results {
+      margin-top: 0.7rem;
+      max-height: 20rem;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    .drive-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: #fff;
+      border: 1px solid #e6e6ee;
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+      margin-bottom: 0.4rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+      min-height: 48px;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      color: #1a1a2e;
+    }
+    .drive-item:active { border-color: #6c5ce7; background: #f0edff; }
+    .drive-item .name { font-weight: 500; }
+    .drive-item .meta { display: block; font-size: 0.78rem; color: #999; margin-top: 0.15rem; }
+
+    .drive-empty { color: #888; font-size: 0.9rem; padding: 0.6rem 0.2rem; }
+
+    .mode-choice {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .mode-option {
+      display: flex;
+      gap: 0.7rem;
+      align-items: flex-start;
+      border: 2px solid #e6e6ee;
+      border-radius: 10px;
+      padding: 0.8rem;
+      cursor: pointer;
+      background: #fff;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .mode-option:has(input:checked) { border-color: #6c5ce7; background: #f7f5ff; }
+    .mode-option input { width: 22px; height: 22px; accent-color: #6c5ce7; flex-shrink: 0; margin-top: 0.1rem; }
+    .mode-option strong { display: block; font-size: 0.95rem; font-weight: 600; }
+    .mode-option small { display: block; color: #777; font-size: 0.82rem; margin-top: 0.2rem; line-height: 1.45; }
+    .mode-option.disabled { opacity: 0.55; }
+
     .doc-title {
       font-size: 1.2rem;
       font-weight: 600;
@@ -402,6 +493,19 @@
           <input type="text" id="doc-url" placeholder="Paste a Google Doc URL..." />
           <button class="btn" id="load-btn" onclick="loadDocument()">Load</button>
         </div>
+
+        <div class="or-row">
+          <button class="btn secondary" id="browse-btn" onclick="toggleBrowser()">
+            Browse Google Drive
+          </button>
+          <span id="reauth-hint"></span>
+        </div>
+
+        <div id="browser" class="browser hidden">
+          <input type="text" id="drive-search" placeholder="Search your documents by name..." />
+          <div id="drive-results" class="drive-results"></div>
+        </div>
+
         <div id="load-error"></div>
       </div>
 
@@ -437,6 +541,23 @@
           </div>
 
           <div id="add-section" class="hidden">
+            <div class="section-label">Where should it go?</div>
+            <div class="mode-choice">
+              <label class="mode-option">
+                <input type="radio" name="mode" value="append" checked onchange="updateModeUI()" />
+                <span>
+                  <strong>Add to this document</strong>
+                  <small>Appends the transposed chart at the bottom, leaving the original untouched.</small>
+                </span>
+              </label>
+              <label class="mode-option" id="mode-copy-option">
+                <input type="radio" name="mode" value="copy" onchange="updateModeUI()" />
+                <span>
+                  <strong>Create a copy in the new key</strong>
+                  <small id="copy-desc">Makes a new document with the chart rewritten in the new key.</small>
+                </span>
+              </label>
+            </div>
             <button class="btn success full" id="add-btn" onclick="addToDocument()">
               Add transposed chart to document
             </button>
@@ -492,12 +613,15 @@
       doc: null,
       selectedChart: 0,
       semitones: 0,
-      useFlats: false
+      useFlats: false,
+      driveEnabled: false
     };
 
     async function checkAuth() {
       const res = await fetch('/api/me');
-      const { authenticated } = await res.json();
+      const { authenticated, driveEnabled } = await res.json();
+      state.driveEnabled = !!driveEnabled;
+      applyDriveAvailability();
       const authArea = document.getElementById('auth-area');
       if (authenticated) {
         authArea.innerHTML = '<a href="/auth/logout" class="auth-btn logout">Sign out</a>';
@@ -508,6 +632,109 @@
         document.getElementById('login-section').classList.remove('hidden');
         document.getElementById('app-section').classList.add('hidden');
       }
+    }
+
+    // Older sign-ins predate the Drive scopes, so the features that need them
+    // are offered only once Google has actually granted them.
+    function applyDriveAvailability() {
+      const browseBtn = document.getElementById('browse-btn');
+      const hint = document.getElementById('reauth-hint');
+      const copyOption = document.getElementById('mode-copy-option');
+      const copyRadio = copyOption.querySelector('input');
+
+      browseBtn.disabled = !state.driveEnabled;
+      copyRadio.disabled = !state.driveEnabled;
+      copyOption.classList.toggle('disabled', !state.driveEnabled);
+
+      if (state.driveEnabled) {
+        hint.innerHTML = '';
+        document.getElementById('copy-desc').textContent =
+          'Makes a new document with the chart rewritten in the new key.';
+      } else {
+        hint.innerHTML = '<a href="/auth">Reconnect Google</a> to browse Drive and save copies';
+        document.getElementById('copy-desc').textContent =
+          'Needs Drive access — reconnect your Google account to enable this.';
+        if (copyRadio.checked) {
+          document.querySelector('input[name="mode"][value="append"]').checked = true;
+        }
+      }
+      updateModeUI();
+    }
+
+    function currentMode() {
+      const checked = document.querySelector('input[name="mode"]:checked');
+      return checked ? checked.value : 'append';
+    }
+
+    function updateModeUI() {
+      const btn = document.getElementById('add-btn');
+      btn.textContent = currentMode() === 'copy'
+        ? 'Create transposed copy'
+        : 'Add transposed chart to document';
+    }
+
+    let searchTimer = null;
+
+    function toggleBrowser() {
+      const browser = document.getElementById('browser');
+      const btn = document.getElementById('browse-btn');
+      const opening = browser.classList.contains('hidden');
+      browser.classList.toggle('hidden', !opening);
+      btn.classList.toggle('open', opening);
+      if (opening) {
+        runDriveSearch('');
+        // Opening the keyboard immediately on a phone hides the results.
+        if (window.innerWidth > 700) document.getElementById('drive-search').focus();
+      }
+    }
+
+    async function runDriveSearch(query) {
+      const results = document.getElementById('drive-results');
+      results.innerHTML = '<div class="drive-empty">Searching...</div>';
+      try {
+        const res = await fetch('/api/drive/search?q=' + encodeURIComponent(query || ''));
+        const data = await res.json();
+
+        if (!res.ok) {
+          results.innerHTML = '<div class="drive-empty">' + escapeHtml(data.error) +
+            (data.needsReauth ? ' <a href="/auth">Reconnect</a>' : '') + '</div>';
+          return;
+        }
+
+        if (!data.files.length) {
+          results.innerHTML = '<div class="drive-empty">No documents found.</div>';
+          return;
+        }
+
+        results.innerHTML = data.files.map(f =>
+          '<button class="drive-item" onclick="loadById(\'' + escapeAttr(f.id) + '\')">' +
+          '<span class="name">' + escapeHtml(f.name) + '</span>' +
+          '<span class="meta">' + formatDate(f.modifiedTime) + '</span>' +
+          '</button>'
+        ).join('');
+      } catch (e) {
+        results.innerHTML = '<div class="drive-empty">Search failed. Please try again.</div>';
+      }
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      return 'Edited ' + d.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    }
+
+    function escapeAttr(s) {
+      return String(s).replace(/[^a-zA-Z0-9_-]/g, '');
+    }
+
+    function loadById(id) {
+      document.getElementById('doc-url').value = id;
+      document.getElementById('browser').classList.add('hidden');
+      document.getElementById('browse-btn').classList.remove('open');
+      loadDocument();
     }
 
     async function loadDocument() {
@@ -655,10 +882,11 @@
     async function addToDocument() {
       if (state.semitones === 0) return;
 
+      const mode = currentMode();
       const btn = document.getElementById('add-btn');
       const msgDiv = document.getElementById('result-message');
       btn.disabled = true;
-      btn.textContent = 'Adding...';
+      btn.textContent = mode === 'copy' ? 'Creating copy...' : 'Adding...';
       msgDiv.innerHTML = '';
 
       try {
@@ -669,7 +897,8 @@
             documentId: state.doc.documentId,
             chartIndex: state.selectedChart,
             semitones: state.semitones,
-            useFlats: state.useFlats
+            useFlats: state.useFlats,
+            mode
           })
         });
         const data = await res.json();
@@ -681,18 +910,21 @@
         }
 
         if (data.success) {
-          const docUrl = 'https://docs.google.com/document/d/' + state.doc.documentId;
+          const label = data.mode === 'copy'
+            ? 'Created <b>' + escapeHtml(data.title) + '</b>.'
+            : 'Transposed chart added.';
           msgDiv.innerHTML =
-            '<div class="message success">Transposed chart added! ' +
-            '<a href="' + docUrl + '" target="_blank">Open document</a></div>';
+            '<div class="message success">' + label +
+            ' <a href="' + escapeHtml(data.url) + '" target="_blank" rel="noopener">Open document</a></div>';
         } else {
-          msgDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) + '</div>';
+          msgDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) +
+            (data.needsReauth ? ' <a href="/auth">Reconnect Google</a>' : '') + '</div>';
         }
       } catch (e) {
         msgDiv.innerHTML = '<div class="message error">Failed to add chart. Please try again.</div>';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Add transposed chart to document';
+        updateModeUI();
       }
     }
 
@@ -714,6 +946,22 @@
     // pasting is the normal path, so select-all on focus makes replacing easy.
     document.getElementById('doc-url').addEventListener('focus', (e) => {
       if (e.target.value) e.target.select();
+    });
+
+    // Debounced so typing does not fire a Drive query per keystroke.
+    document.getElementById('drive-search').addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      const q = e.target.value;
+      searchTimer = setTimeout(() => runDriveSearch(q), 300);
+    });
+
+    document.getElementById('drive-search').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.target.blur();
+        clearTimeout(searchTimer);
+        runDriveSearch(e.target.value);
+      }
     });
 
     if ('serviceWorker' in navigator) {

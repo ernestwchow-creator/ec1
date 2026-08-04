@@ -3,7 +3,10 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const { google } = require('googleapis');
-const { extractDocId, extractTables, readDocument, appendTransposedChart } = require('./src/docs');
+const {
+  extractDocId, extractTables, readDocument, appendTransposedChart,
+  searchDocuments, copyDocument, replaceChart
+} = require('./src/docs');
 const {
   isChordTable, isRomanNumeralTable, transposeCellText,
   detectKeyFromChart, transposeNote
@@ -29,6 +32,30 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const REDIRECT_URI = `${BASE_URL}/auth/callback`;
+
+const SCOPE_BASE = 'https://www.googleapis.com/auth/';
+const SCOPES = [
+  // Read the chart and write the transposed one back.
+  `${SCOPE_BASE}documents`,
+  // Search the user's documents by name. Read-only on purpose.
+  `${SCOPE_BASE}drive.readonly`,
+  // Create the transposed copy. Grants access only to files this app creates,
+  // not to the rest of the user's Drive.
+  `${SCOPE_BASE}drive.file`
+];
+
+// Tokens issued before the Drive scopes were added still work for appending,
+// so rather than forcing everyone to re-authorize we check what was actually
+// granted and let the UI offer a reconnect only where it is needed.
+function grantedScopes(tokens) {
+  return new Set(String(tokens.scope || '').split(/\s+/).filter(Boolean));
+}
+
+function hasDriveAccess(tokens) {
+  const g = grantedScopes(tokens);
+  const has = (s) => g.has(SCOPE_BASE + s);
+  return has('drive') || (has('drive.readonly') && has('drive.file'));
+}
 
 function getOAuth2Client() {
   return new google.auth.OAuth2(
@@ -165,7 +192,7 @@ app.get('/auth', (req, res) => {
     // 'offline' + forced consent guarantees Google returns a refresh token,
     // which is the credential that makes the session durable.
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/documents'],
+    scope: SCOPES,
     prompt: 'consent'
   });
   res.redirect(url);
@@ -189,17 +216,51 @@ app.get('/auth/logout', (req, res) => {
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ authenticated: !!readTokens(req, SECRET) });
+  const tokens = readTokens(req, SECRET);
+  res.json({
+    authenticated: !!tokens,
+    // Drives whether the UI offers Drive browsing and the "save as a copy"
+    // mode, or prompts to reconnect for the newer scopes.
+    driveEnabled: tokens ? hasDriveAccess(tokens) : false
+  });
+});
+
+app.get('/api/drive/search', async (req, res) => {
+  const tokens = readTokens(req, SECRET);
+  if (!tokens) return res.status(401).json({ error: 'Not authenticated' });
+  if (!hasDriveAccess(tokens)) {
+    return res.status(403).json({
+      error: 'Drive access has not been granted yet.',
+      needsReauth: true
+    });
+  }
+
+  const auth = getAuthedClient(req, res);
+  try {
+    const files = await searchDocuments(auth, req.query.q);
+    res.json({ files });
+  } catch (err) {
+    console.error('Drive search error:', err.message);
+    if (isAuthFailure(err)) {
+      clearTokens(res, IS_PROD);
+      return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
+    }
+    if (err.code === 403) {
+      return res.status(403).json({ error: 'Drive access was refused. Try reconnecting.', needsReauth: true });
+    }
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/document', async (req, res) => {
   const auth = getAuthedClient(req, res);
   if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
-  const url = req.query.url;
-  if (!url) return res.status(400).json({ error: 'Missing url parameter' });
+  // `url` is what the paste box sends; `id` is what the Drive browser sends.
+  const source = req.query.url || req.query.id;
+  if (!source) return res.status(400).json({ error: 'Missing url parameter' });
 
-  const docId = extractDocId(url);
+  const docId = extractDocId(source);
   if (!docId) return res.status(400).json({ error: 'Invalid Google Doc URL. Expected a URL like https://docs.google.com/document/d/...' });
 
   try {
@@ -237,16 +298,27 @@ app.post('/api/transpose', async (req, res) => {
   const auth = getAuthedClient(req, res);
   if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
-  const { documentId, chartIndex, semitones, useFlats } = req.body;
+  const { documentId, chartIndex, semitones, useFlats, mode } = req.body;
   if (!documentId) return res.status(400).json({ error: 'Missing documentId' });
   if (semitones === undefined || semitones === 0) return res.status(400).json({ error: 'Semitones must be non-zero' });
+
+  const outputMode = mode === 'copy' ? 'copy' : 'append';
+  const tokens = readTokens(req, SECRET);
+  if (outputMode === 'copy' && !hasDriveAccess(tokens)) {
+    return res.status(403).json({
+      error: 'Creating a copy needs Drive access. Please reconnect your Google account.',
+      needsReauth: true
+    });
+  }
 
   try {
     const doc = await readDocument(auth, documentId);
     const tables = extractTables(doc);
-    const chordCharts = tables.filter(t => isChordTable(t.data) && !isRomanNumeralTable(t.data));
+    const isChart = (data) => isChordTable(data) && !isRomanNumeralTable(data);
+    const chordCharts = tables.filter(t => isChart(t.data));
 
-    const chart = chordCharts[chartIndex || 0];
+    const index = chartIndex || 0;
+    const chart = chordCharts[index];
     if (!chart) return res.status(404).json({ error: 'Chord chart not found in document' });
 
     const transposed = chart.data.map((row) =>
@@ -261,14 +333,46 @@ app.post('/api/transpose', async (req, res) => {
     const direction = semitones > 0 ? '+' : '';
     const title = `Transposed to ${newKey} (${direction}${semitones} semitones from ${originalKey})`;
 
+    if (outputMode === 'copy') {
+      // Strip any "(key)" this app added previously, so transposing a copy of a
+      // copy gives "Song (A)" rather than "Song (G) (A)".
+      const baseName = String(doc.title || 'Chord chart').replace(/\s*\([A-G][#b]?\)\s*$/, '').trim();
+      const newName = `${baseName} (${newKey})`;
+
+      const copy = await copyDocument(auth, documentId, newName);
+      await replaceChart(auth, copy.id, isChart, index, transposed);
+
+      return res.json({
+        success: true,
+        mode: 'copy',
+        title: newName,
+        documentId: copy.id,
+        url: copy.webViewLink || `https://docs.google.com/document/d/${copy.id}`,
+        transposedChart: transposed
+      });
+    }
+
     await appendTransposedChart(auth, documentId, transposed, title);
 
-    res.json({ success: true, title, transposedChart: transposed });
+    res.json({
+      success: true,
+      mode: 'append',
+      title,
+      documentId,
+      url: `https://docs.google.com/document/d/${documentId}`,
+      transposedChart: transposed
+    });
   } catch (err) {
     console.error('Transpose error:', err.message);
     if (isAuthFailure(err)) {
       clearTokens(res, IS_PROD);
       return res.status(401).json({ error: 'Your Google sign-in expired. Please sign in again.' });
+    }
+    if (err.code === 403) {
+      return res.status(403).json({
+        error: 'Google refused the request. If you are creating a copy, try reconnecting to grant Drive access.',
+        needsReauth: true
+      });
     }
     res.status(500).json({ error: err.message });
   }

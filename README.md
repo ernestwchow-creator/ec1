@@ -1,11 +1,21 @@
 # Chord Transposer
 
-Transpose chord charts in your Google Docs. Paste a Doc URL, pick how many
-semitones to move, preview the result, and the app appends the transposed chart
-as a new table at the bottom of the same document.
+Transpose chord charts in your Google Docs. Find a chart by pasting a Doc URL
+or by searching your Drive, pick how many semitones to move, preview the
+result, then either append the transposed chart to the same document or save a
+new copy in the new key.
 
 Runs in any browser and installs to the iPhone/iPad home screen as a
 full-screen app.
+
+## Two ways to save
+
+- **Add to this document** — appends the transposed chart as a new table at the
+  bottom, leaving the original chart untouched.
+- **Create a copy in the new key** — copies the document, rewrites the chart in
+  place, and names it `Original name (G)`. The original document is not
+  modified. Transposing an already-transposed copy replaces the key suffix
+  rather than stacking, so you get `Song (A)`, never `Song (G) (A)`.
 
 ## What it handles
 
@@ -141,11 +151,29 @@ native app.
 | --- | --- |
 | `server.js` | Express server, Google OAuth, API routes |
 | `src/transpose.js` | Chord parsing, transposition, chart detection |
-| `src/docs.js` | Google Docs API: read tables, append transposed chart |
+| `src/docs.js` | Google Docs and Drive: search, read, append, copy, rewrite |
+| `src/session.js` | Encrypted cookie session |
+| `test-session.js`, `test-replace.js` | Tests (`npm test`) |
 | `public/index.html` | Front end with live transposition preview |
 | `public/manifest.json` | PWA manifest (home-screen install) |
 | `public/sw.js` | Service worker caching the app shell |
 | `render.yaml` | Deployment blueprint for Render |
+
+## Scopes and re-authorizing
+
+The app requests three OAuth scopes:
+
+| Scope | Why |
+| --- | --- |
+| `documents` | Read the chart and write the transposed one back |
+| `drive.readonly` | Search your documents by name in the Drive browser |
+| `drive.file` | Create the transposed copy — grants access only to files this app creates, not the rest of your Drive |
+
+Drive browsing and copying were added after the first release, so a sign-in
+from before then holds a token without the Drive scopes. The app detects this:
+Drive features stay disabled and a **Reconnect Google** link appears. Signing
+in again grants the new scopes. Appending to a document keeps working
+throughout.
 
 ## Sessions
 

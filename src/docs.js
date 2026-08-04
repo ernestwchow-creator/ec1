@@ -1,8 +1,46 @@
 const { google } = require('googleapis');
 
+const DOC_MIME = 'application/vnd.google-apps.document';
+
 function extractDocId(url) {
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  return match ? match[1] : null;
+  const trimmed = String(url || '').trim();
+  const match = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  // Accept a bare file ID, which is what the Drive browser hands us.
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+// Searches the user's Docs by title. An empty query lists the most recently
+// modified ones, which is the common case when reaching for a chart.
+async function searchDocuments(auth, query) {
+  const drive = google.drive({ version: 'v3', auth });
+  const clauses = [`mimeType = '${DOC_MIME}'`, 'trashed = false'];
+
+  const term = String(query || '').trim();
+  if (term) {
+    // Single quotes and backslashes would otherwise break out of the literal.
+    clauses.push(`name contains '${term.replace(/[\\']/g, '\\$&')}'`);
+  }
+
+  const res = await drive.files.list({
+    q: clauses.join(' and '),
+    orderBy: 'modifiedTime desc',
+    pageSize: 25,
+    fields: 'files(id,name,modifiedTime)',
+    spaces: 'drive'
+  });
+  return res.data.files || [];
+}
+
+async function copyDocument(auth, fileId, newName) {
+  const drive = google.drive({ version: 'v3', auth });
+  const res = await drive.files.copy({
+    fileId,
+    requestBody: { name: newName },
+    fields: 'id,name,webViewLink'
+  });
+  return res.data;
 }
 
 function getCellText(cell) {
@@ -156,4 +194,84 @@ async function appendTransposedChart(auth, documentId, chartData, title) {
   }
 }
 
-module.exports = { extractDocId, extractTables, readDocument, appendTransposedChart };
+function tableToData(table) {
+  return (table.tableRows || []).map(row =>
+    (row.tableCells || []).map(getCellText)
+  );
+}
+
+// Rewrites a chart in place, used on a freshly copied document so the copy
+// reads as a chart in the new key rather than the original plus an appendix.
+//
+// Two constraints drive the shape of this: a cell's trailing newline ends its
+// paragraph and deleting it would collapse the table, and every edit shifts the
+// indices of everything after it. So each cell is trimmed to its text only, and
+// the whole document is walked back to front.
+async function replaceChart(auth, documentId, isTargetTable, chartIndex, newData) {
+  const docs = google.docs({ version: 'v1', auth });
+  const doc = (await docs.documents.get({ documentId })).data;
+
+  const matches = (doc.body.content || [])
+    .filter(el => el.table)
+    .map(el => el.table)
+    .filter(table => isTargetTable(tableToData(table)));
+
+  const table = matches[chartIndex];
+  if (!table) {
+    const err = new Error('Chord chart not found in the copied document');
+    err.code = 404;
+    throw err;
+  }
+
+  const requests = [];
+  const rows = table.tableRows || [];
+
+  for (let r = rows.length - 1; r >= 0; r--) {
+    const cells = rows[r].tableCells || [];
+    for (let c = cells.length - 1; c >= 0; c--) {
+      const newText = (newData[r] && newData[r][c]) || '';
+      const paragraphs = (cells[c].content || []).filter(x => x.paragraph);
+      if (!paragraphs.length) continue;
+
+      // Range of a paragraph's text, excluding the newline that terminates it.
+      const textRange = (para) => {
+        const runs = (para.paragraph.elements || []).filter(e => e.textRun);
+        if (!runs.length) return null;
+        const last = runs[runs.length - 1];
+        const end = last.textRun.content.endsWith('\n') ? last.endIndex - 1 : last.endIndex;
+        const text = runs.map(e => e.textRun.content).join('').replace(/\n$/, '');
+        return { start: runs[0].startIndex, end, text };
+      };
+
+      const first = textRange(paragraphs[0]);
+      const unchanged = paragraphs.length === 1 && first && first.text === newText;
+      if (unchanged) continue;
+
+      // Clear trailing paragraphs first so the first paragraph's indices hold.
+      for (let p = paragraphs.length - 1; p >= 1; p--) {
+        const range = textRange(paragraphs[p]);
+        if (range && range.end > range.start) {
+          requests.push({ deleteContentRange: { range: { startIndex: range.start, endIndex: range.end } } });
+        }
+      }
+
+      const start = first ? first.start : paragraphs[0].startIndex;
+      if (first && first.end > first.start) {
+        requests.push({ deleteContentRange: { range: { startIndex: start, endIndex: first.end } } });
+      }
+      if (newText) {
+        requests.push({ insertText: { location: { index: start }, text: newText } });
+      }
+    }
+  }
+
+  if (requests.length) {
+    await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
+  }
+  return requests.length;
+}
+
+module.exports = {
+  extractDocId, extractTables, readDocument, appendTransposedChart,
+  searchDocuments, copyDocument, replaceChart, tableToData
+};
