@@ -272,16 +272,29 @@ function renderResults(data) {
   $("#meal-description").textContent = data.meal_description || "";
 
   const banner = $("#risk-banner");
-  const riskMessages = {
-    high: "High oxalate meal — calcium supplementation recommended",
-    moderate: "Moderate oxalate meal — consider calcium with this meal",
-    low: "Low oxalate meal — minimal concern",
-    "very low": "Very low oxalate — no supplementation needed",
-  };
-  banner.textContent = riskMessages[data.risk_level] || "";
-  banner.className = "risk-banner risk-" + data.risk_level.replace(" ", "");
-
   const ca = data.calcium_recommendation;
+  const needsSupplement = ca.supplement_calcium_mg > 0;
+
+  let bannerText, bannerStyle;
+  if (data.risk_level === "high" || data.risk_level === "moderate") {
+    if (needsSupplement) {
+      bannerText = data.risk_level === "high"
+        ? "High oxalate meal — calcium supplementation recommended"
+        : "Moderate oxalate meal — consider calcium with this meal";
+      bannerStyle = "risk-" + data.risk_level;
+    } else {
+      bannerText = (data.risk_level === "high" ? "High" : "Moderate") +
+        " oxalate — but dietary calcium in this meal is sufficient";
+      bannerStyle = "risk-low";
+    }
+  } else {
+    bannerText = data.risk_level === "low"
+      ? "Low oxalate meal — minimal concern"
+      : "Very low oxalate — no supplementation needed";
+    bannerStyle = "risk-" + data.risk_level.replace(" ", "");
+  }
+  banner.textContent = bannerText;
+  banner.className = "risk-banner " + bannerStyle;
   $("#total-oxalate").textContent = data.total_oxalate_mg;
   $("#dietary-calcium").textContent = ca.dietary_calcium_mg;
   $("#supplement-calcium").textContent = ca.supplement_calcium_mg;
