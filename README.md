@@ -94,9 +94,23 @@ Put them in `.env` locally, or in your host's environment settings when
 deployed.
 
 **6. Create an API key** for the Picker (the "Browse Google Drive" button).
-**Credentials → Create Credentials → API key**. Restrict it to the **Picker
-API**, and under *Application restrictions* limit it to your app's domain.
-Set it as `GOOGLE_API_KEY`.
+**Credentials → Create Credentials → API key**, then **Edit API key** and set
+both restrictions. The key reaches the browser — Picker cannot work otherwise —
+so anyone using the app can read it. Restricting it is what stops it being
+reused elsewhere.
+
+- **Application restrictions → Websites.** Add one entry per origin the app is
+  served from:
+  - `https://your-app.onrender.com/*`
+  - `http://localhost:3000/*` (only if you run it locally)
+- **API restrictions → Restrict key** → tick **Google Picker API** only.
+
+Leave *"Authenticate API calls through a service account"* unchecked. A service
+account is a robot identity with its own Drive, and it has no access to your
+files. This app acts as *you*, via the OAuth token from signing in; the API key
+only identifies the project for quota purposes.
+
+Set the key as `GOOGLE_API_KEY`.
 
 Optionally set `GOOGLE_PROJECT_NUMBER` to your Cloud project *number* (from the
 console's project settings, not the project ID). Picker uses it to associate
