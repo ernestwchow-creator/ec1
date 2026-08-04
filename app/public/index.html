@@ -224,6 +224,28 @@
     </div>
   </div>
 
+  <!-- AI Estimation Info Modal -->
+  <div id="ai-info-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content ai-info-content">
+      <h3>About AI Estimates</h3>
+      <p>When a food is not in our curated reference database, nutritional values are estimated by Claude, an AI model by Anthropic.</p>
+      <h4>How it works</h4>
+      <ul>
+        <li><strong>Food identification</strong> — Claude analyzes your photo to identify each food item and estimate portion size.</li>
+        <li><strong>Nutritional estimation</strong> — For each food, Claude draws on its training data (which includes USDA, nutrition textbooks, and food science literature) to estimate oxalate, calcium, carbohydrates, fiber, and glycemic index per 100g.</li>
+        <li><strong>Fallback only</strong> — These AI estimates are only used when the food is not found in our reference database, which contains curated values from published sources.</li>
+      </ul>
+      <h4>Accuracy</h4>
+      <p>AI estimates are approximate. They are reliable enough for general guidance (e.g. "puff pastry is low-oxalate, high-carb") but may not match exact lab-measured values. For foods you eat regularly, you can correct the identification to a database food or scan the product's nutritional label for precise values.</p>
+      <h4>What's in the reference database?</h4>
+      <p>Our database contains ~95 foods with values sourced from the Oxalosis &amp; Hyperoxaluria Foundation, USDA FoodData Central, and the University of Sydney GI Database. Foods in the database show source links instead of "AI estimated."</p>
+      <div class="modal-actions">
+        <button id="ai-info-close" class="primary-btn">Got it</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

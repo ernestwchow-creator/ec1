@@ -350,7 +350,7 @@ function renderFoodList(foods) {
       ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
       ${sourceHtml(f)}
-      ${!f.in_database && f.ai_estimated ? `<div class="food-ai-estimated">AI estimated — not in reference database</div>` : ""}
+      ${!f.in_database && f.ai_estimated ? `<div class="food-ai-estimated"><a href="#" class="ai-info-link" onclick="event.stopPropagation();showAiInfo();return false;">AI estimated</a> — not in reference database</div>` : ""}
       ${!f.in_database && !f.ai_estimated ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
       ${autoCorrected}
       <div class="food-correction-hint">Tap to edit</div>
@@ -545,6 +545,14 @@ customInput.addEventListener("keydown", (e) => {
     if (val) applyCorrection(val, getWeightInGrams());
   }
 });
+
+// -- AI Info Modal --
+const aiInfoModal = $("#ai-info-modal");
+function showAiInfo() {
+  aiInfoModal.classList.remove("hidden");
+}
+aiInfoModal.querySelector(".modal-backdrop").addEventListener("click", () => aiInfoModal.classList.add("hidden"));
+$("#ai-info-close").addEventListener("click", () => aiInfoModal.classList.add("hidden"));
 
 // -- Memory Management --
 const clearMemBtn = $("#clear-memory-btn");

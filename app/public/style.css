@@ -456,6 +456,37 @@ main {
   font-style: italic;
 }
 
+.ai-info-link {
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-style: italic;
+}
+
+.ai-info-content h4 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+  color: var(--text);
+}
+
+.ai-info-content ul {
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ai-info-content ul li {
+  margin-bottom: 6px;
+}
+
+.ai-info-content p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
 .food-source {
   font-size: 11px;
   color: var(--text-secondary);
