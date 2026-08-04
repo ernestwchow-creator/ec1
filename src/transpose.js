@@ -121,14 +121,26 @@ function detectKeyFromChart(tableData) {
   return 'C';
 }
 
-function defaultUseFlats(note) {
-  const n = note.replace('♯', '#').replace('♭', 'b');
-  return FLAT_KEYS.has(n) || n.includes('b');
+// Which spelling a key is conventionally written in. Db, Eb, F, Ab and Bb take
+// flats; the rest take sharps. F# and Gb are genuinely ambiguous — F# is the
+// commoner choice in guitar-led material, so it falls to the sharp side.
+const FLAT_PITCH_CLASSES = new Set([1, 3, 5, 8, 10]);
+
+function preferFlatsFor(note) {
+  const idx = noteToIndex(note);
+  if (idx === -1) return false;
+  return FLAT_PITCH_CLASSES.has(idx);
+}
+
+function preferFlatsForKeyShift(originalKey, semitones) {
+  const idx = noteToIndex(originalKey);
+  if (idx === -1) return false;
+  return FLAT_PITCH_CLASSES.has(((idx + semitones) % 12 + 12) % 12);
 }
 
 module.exports = {
   NOTES_SHARP, NOTES_FLAT,
   noteToIndex, transposeNote, transposeToken, transposeCellText,
   isChordToken, cellContainsChords, isChordTable, isRomanNumeralTable,
-  detectKeyFromChart, defaultUseFlats
+  detectKeyFromChart, preferFlatsFor, preferFlatsForKeyShift
 };

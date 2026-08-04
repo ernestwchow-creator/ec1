@@ -302,24 +302,38 @@
     }
     .key-display strong { color: #6c5ce7; }
 
-    .flat-toggle {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.95rem;
-      color: #555;
-      min-height: 44px;
-      cursor: pointer;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-
-    .flat-toggle input[type="checkbox"] {
-      width: 24px;
-      height: 24px;
-      accent-color: #6c5ce7;
+    .acc-toggle {
+      display: inline-flex;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
       flex-shrink: 0;
     }
+
+    .acc-btn {
+      min-height: 44px;
+      padding: 0.4rem 0.95rem;
+      border: none;
+      background: transparent;
+      color: #666;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background 0.15s, color 0.15s;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-user-select: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .acc-btn + .acc-btn { border-left: 2px solid #eee; }
+    .acc-btn.active { background: #6c5ce7; color: #fff; font-weight: 600; }
+
+    .acc-sym { font-size: 1.15rem; line-height: 1; }
 
     .section-label {
       font-size: 0.8rem;
@@ -395,7 +409,9 @@
       .semitone-group { justify-content: center; gap: 0.75rem; }
       .semitone-btn { width: 52px; height: 52px; }
       .key-display { text-align: center; }
-      .flat-toggle { justify-content: center; }
+      /* Centre the toggle and let it span the width on a narrow screen. */
+      .acc-toggle { align-self: center; }
+      .acc-btn { flex: 1; justify-content: center; padding: 0.4rem 1.4rem; }
 
       /* A full-width button is easier to hit with a thumb. */
       #add-btn { width: 100%; }
@@ -468,10 +484,14 @@
               <button class="semitone-btn" onclick="changeSemitones(1)" aria-label="Transpose up a semitone">+</button>
             </div>
             <div class="key-display" id="key-display"></div>
-            <label class="flat-toggle">
-              <input type="checkbox" id="use-flats" onchange="updatePreview()" />
-              Use flats
-            </label>
+            <div class="acc-toggle" role="group" aria-label="Accidental spelling">
+              <button type="button" class="acc-btn" id="acc-sharp" onclick="setAccidental(false)">
+                <span class="acc-sym">&#9839;</span> Sharps
+              </button>
+              <button type="button" class="acc-btn" id="acc-flat" onclick="setAccidental(true)">
+                <span class="acc-sym">&#9837;</span> Flats
+              </button>
+            </div>
           </div>
 
           <div class="compare" id="compare">
@@ -518,7 +538,15 @@
   <script>
     const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-    const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb']);
+    // Keys conventionally written with flats: Db, Eb, F, Ab, Bb. F#/Gb is
+    // ambiguous and falls to the sharp side.
+    const FLAT_PITCH_CLASSES = new Set([1, 3, 5, 8, 10]);
+
+    function preferFlatsForKeyShift(originalKey, semitones) {
+      const idx = noteToIndex(originalKey);
+      if (idx === -1) return false;
+      return FLAT_PITCH_CLASSES.has(((idx + semitones) % 12 + 12) % 12);
+    }
 
     function noteToIndex(note) {
       const n = note.replace('♯','#').replace('♭','b');
@@ -560,6 +588,8 @@
       selectedChart: 0,
       semitones: 0,
       useFlats: false,
+      // Once the spelling is chosen by hand it stops following the target key.
+      accidentalChosen: false,
       canBrowse: false,
       canCopy: false,
       scopes: null
@@ -743,8 +773,8 @@
         state.doc = data;
         state.selectedChart = 0;
         state.semitones = 0;
-        document.getElementById('use-flats').checked = false;
         state.useFlats = false;
+        state.accidentalChosen = false;
 
         displayDocument();
       } catch (e) {
@@ -801,9 +831,30 @@
       return html;
     }
 
+    function setAccidental(useFlats) {
+      state.useFlats = useFlats;
+      state.accidentalChosen = true;
+      updatePreview();
+      updateKeyDisplay();
+    }
+
+    // Until the user picks, follow whatever the destination key is normally
+    // written in — transposing to Eb should read Eb, not D#.
+    function applyAutoAccidental() {
+      if (state.accidentalChosen || !state.doc) return;
+      const chart = state.doc.chordCharts[state.selectedChart];
+      state.useFlats = preferFlatsForKeyShift(chart.detectedKey, state.semitones);
+    }
+
+    function renderAccidentalToggle() {
+      document.getElementById('acc-sharp').classList.toggle('active', !state.useFlats);
+      document.getElementById('acc-flat').classList.toggle('active', state.useFlats);
+    }
+
     function changeSemitones(delta) {
       state.semitones = ((state.semitones + delta) % 12 + 12) % 12;
       if (state.semitones > 6) state.semitones -= 12;
+      applyAutoAccidental();
       updatePreview();
       updateKeyDisplay();
     }
@@ -811,8 +862,9 @@
     function updateKeyDisplay() {
       const chart = state.doc.chordCharts[state.selectedChart];
       const origKey = chart.detectedKey;
-      const useFlats = document.getElementById('use-flats').checked;
-      const newKey = transposeNote(origKey, state.semitones, useFlats);
+      const newKey = transposeNote(origKey, state.semitones, state.useFlats);
+
+      renderAccidentalToggle();
 
       document.getElementById('semitone-display').textContent =
         (state.semitones > 0 ? '+' : '') + state.semitones;
@@ -824,9 +876,6 @@
     }
 
     function updatePreview() {
-      const useFlats = document.getElementById('use-flats').checked;
-      state.useFlats = useFlats;
-
       const section = document.getElementById('transposed-section');
       const addSection = document.getElementById('add-section');
       const compare = document.getElementById('compare');
@@ -842,7 +891,7 @@
 
       const chart = state.doc.chordCharts[state.selectedChart];
       const transposed = chart.data.map((row) =>
-        row.map((cell, c) => c === 0 ? cell : transposeCellText(cell, state.semitones, useFlats))
+        row.map((cell, c) => c === 0 ? cell : transposeCellText(cell, state.semitones, state.useFlats))
       );
 
       document.getElementById('transposed-chart').innerHTML = renderTable(transposed, true);

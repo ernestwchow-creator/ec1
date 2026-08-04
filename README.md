@@ -24,7 +24,9 @@ full-screen app.
 - Slash chords (`E7/G#`, `Gm7/D`) — root and bass note both move
 - Repeat signs (`||:`, `:||`), repeat counts (`x3`), and section labels are
   preserved as-is
-- Sharp/flat spelling toggle
+- A sharps/flats toggle, which starts on whichever the destination key is
+  conventionally written in — transposing to Eb gives `Eb Cm`, not `D# B#m` —
+  and stays put once set by hand
 - Skips lyric tables and Roman-numeral analysis tables
 - Documents with several charts: pick which one to transpose
 
