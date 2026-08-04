@@ -46,9 +46,12 @@ const SCOPES = [
 
 // Picker runs in the browser and needs a Google API key of its own.
 const PICKER_API_KEY = process.env.GOOGLE_API_KEY || '';
-// Optional: the Cloud project number. Picker uses it to associate picked files
-// with this app for drive.file access.
-const PICKER_APP_ID = process.env.GOOGLE_PROJECT_NUMBER || '';
+// The Cloud project *number*, which Picker uses to associate a picked file with
+// this app. The project *ID* is the value on display in the console's project
+// list, so it is the one people reach for by mistake; Picker fails obscurely if
+// given it, so a non-numeric value is rejected here instead.
+const RAW_PROJECT_NUMBER = (process.env.GOOGLE_PROJECT_NUMBER || '').trim();
+const PICKER_APP_ID = /^\d+$/.test(RAW_PROJECT_NUMBER) ? RAW_PROJECT_NUMBER : '';
 
 // Tokens issued before the Drive scopes were added still work for appending,
 // so rather than forcing everyone to re-authorize we check what was actually
@@ -492,5 +495,10 @@ app.listen(PORT, '0.0.0.0', () => {
   }
   if (IS_PROD && !process.env.SESSION_SECRET) {
     console.warn('WARNING: SESSION_SECRET is not set. Sessions will not survive a restart.');
+  }
+  if (RAW_PROJECT_NUMBER && !PICKER_APP_ID) {
+    console.warn(`WARNING: GOOGLE_PROJECT_NUMBER is "${RAW_PROJECT_NUMBER}", which is not a number.`);
+    console.warn('         That looks like the project ID. The project number is digits only —');
+    console.warn('         find it under IAM & Admin > Settings. Ignoring it for now.');
   }
 });

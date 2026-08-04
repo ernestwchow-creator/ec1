@@ -112,9 +112,21 @@ only identifies the project for quota purposes.
 
 Set the key as `GOOGLE_API_KEY`.
 
-Optionally set `GOOGLE_PROJECT_NUMBER` to your Cloud project *number* (from the
-console's project settings, not the project ID). Picker uses it to associate
-picked files with this app.
+**7. Set `GOOGLE_PROJECT_NUMBER`** to your Cloud project **number**. Picker uses
+it to associate a picked file with this app, which is what extends `drive.file`
+access to the file you chose.
+
+This is not the project ID, and the project list shows the ID, so it is easy to
+grab the wrong one:
+
+| | Example | Where |
+| --- | --- | --- |
+| Project **ID** | `chord-transposer-472913` | Shown in the project list — letters, digits, hyphens |
+| Project **number** | `123456789012` | Digits only |
+
+Find the number under
+[IAM & Admin → Settings](https://console.cloud.google.com/iam-admin/settings),
+or in the **Project info** card on the console home page.
 
 Without `GOOGLE_API_KEY` the browse button is simply hidden; pasting a URL
 still works.
