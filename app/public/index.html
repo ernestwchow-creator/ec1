@@ -143,6 +143,27 @@
       </div>
       <div id="gi-banner" class="gi-banner"></div>
 
+      <!-- Fat-Protein Units -->
+      <h3 class="section-title">Fat-Protein Units (Insulin Timing)</h3>
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-label">Fat</div>
+          <div class="card-value" id="total-fat">&mdash;</div>
+          <div class="card-unit">g</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Protein</div>
+          <div class="card-value" id="total-protein">&mdash;</div>
+          <div class="card-unit">g</div>
+        </div>
+        <div class="card" id="fpu-card">
+          <div class="card-label">FPU</div>
+          <div class="card-value" id="fpu-value">&mdash;</div>
+          <div class="card-unit" id="fpu-equiv">slow carb equiv</div>
+        </div>
+      </div>
+      <div id="absorption-banner" class="absorption-banner"></div>
+
       <!-- Food details -->
       <h3 class="section-title">Food Breakdown</h3>
       <p class="section-hint">Tap a food to correct misidentifications</p>
@@ -174,7 +195,7 @@
           <input type="text" id="search-foods" placeholder="Search foods...">
           <div class="table-scroll">
             <table id="food-table">
-              <thead><tr><th>Food</th><th>Oxalate (mg/100g)</th><th>Ca (mg/100g)</th><th>Net Carbs (g/100g)</th><th>GI</th></tr></thead>
+              <thead><tr><th>Food</th><th>Oxalate (mg/100g)</th><th>Ca (mg/100g)</th><th>Net Carbs (g/100g)</th><th>Fat (g/100g)</th><th>Protein (g/100g)</th><th>GI</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>

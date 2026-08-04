@@ -36,6 +36,8 @@ function buildFoodResult(food) {
   const caPer100 = dbEntry ? dbEntry.calcium_mg_per_100g : (food.est_calcium_mg_per_100g ?? null);
   const carbsPer100 = dbEntry ? dbEntry.carbs_g_per_100g : (food.est_carbs_g_per_100g ?? null);
   const fiberPer100 = dbEntry ? dbEntry.fiber_g_per_100g : (food.est_fiber_g_per_100g ?? null);
+  const fatPer100 = dbEntry ? dbEntry.fat_g_per_100g : (food.est_fat_g_per_100g ?? null);
+  const proteinPer100 = dbEntry ? dbEntry.protein_g_per_100g : (food.est_protein_g_per_100g ?? null);
   const gi = dbEntry ? dbEntry.glycemic_index : (food.est_glycemic_index ?? null);
 
   const estOx = oxPer100 !== null ? (oxPer100 * w) / 100 : null;
@@ -44,6 +46,8 @@ function buildFoodResult(food) {
   const estCa = caPer100 !== null ? (caPer100 * w) / 100 : null;
   const totalCarbs = carbsPer100 !== null ? (carbsPer100 * w) / 100 : null;
   const fiber = fiberPer100 !== null ? (fiberPer100 * w) / 100 : null;
+  const fat = fatPer100 !== null ? (fatPer100 * w) / 100 : null;
+  const protein = proteinPer100 !== null ? (proteinPer100 * w) / 100 : null;
   const netCarbs = totalCarbs !== null && fiber !== null ? totalCarbs - fiber : null;
   const gl = gi !== null && netCarbs !== null ? Math.round((gi * netCarbs) / 100) : null;
   const aiEstimated = !dbEntry && (oxPer100 !== null || carbsPer100 !== null);
@@ -64,6 +68,8 @@ function buildFoodResult(food) {
     dietary_calcium_mg: estCa !== null ? Math.round(estCa) : null,
     total_carbs_g: totalCarbs !== null ? Math.round(totalCarbs * 10) / 10 : null,
     fiber_g: fiber !== null ? Math.round(fiber * 10) / 10 : null,
+    fat_g: fat !== null ? Math.round(fat * 10) / 10 : null,
+    protein_g: protein !== null ? Math.round(protein * 10) / 10 : null,
     net_carbs_g: netCarbs !== null ? Math.round(netCarbs * 10) / 10 : null,
     glycemic_index: gi,
     glycemic_load: gl,
@@ -73,6 +79,8 @@ function buildFoodResult(food) {
     est_calcium_mg_per_100g: food.est_calcium_mg_per_100g ?? null,
     est_carbs_g_per_100g: food.est_carbs_g_per_100g ?? null,
     est_fiber_g_per_100g: food.est_fiber_g_per_100g ?? null,
+    est_fat_g_per_100g: food.est_fat_g_per_100g ?? null,
+    est_protein_g_per_100g: food.est_protein_g_per_100g ?? null,
     est_glycemic_index: food.est_glycemic_index ?? null,
     source: food.source || null,
   };
@@ -100,6 +108,46 @@ function calculateCalciumRecommendation(totalOxalateMg, dietaryCalciumMg, tablet
   };
 }
 
+function calculateFpuSummary(totalFatG, totalProteinG, netCarbsG, maxGI) {
+  const fpu = (totalFatG * 9 + totalProteinG * 4) / 100;
+  const fpuRounded = Math.round(fpu * 10) / 10;
+  const fpuCarbEquiv = Math.round(fpu * 10);
+
+  let durationHours = 0;
+  if (fpu >= 4) durationHours = 8;
+  else if (fpu >= 3) durationHours = 5;
+  else if (fpu >= 2) durationHours = 4;
+  else if (fpu >= 1) durationHours = 3;
+
+  let absorptionProfile, absorptionDetail;
+  if (netCarbsG < 5 && fpu < 1) {
+    absorptionProfile = "minimal";
+    absorptionDetail = "Very low carb and fat/protein — minimal blood sugar impact expected";
+  } else if (fpu >= 2 && netCarbsG < 15) {
+    absorptionProfile = "extended";
+    absorptionDetail = `High fat/protein meal (${fpuRounded} FPU) with low carbs — expect a delayed, extended blood sugar rise over ${durationHours}h`;
+  } else if (fpu >= 1 && netCarbsG >= 10) {
+    absorptionProfile = "dual";
+    absorptionDetail = `Mixed meal (${fpuRounded} FPU + ${Math.round(netCarbsG)}g net carbs) — expect initial carb spike then extended rise over ${durationHours}h. Consider split/dual-wave bolus`;
+  } else if (maxGI >= 70 && fpu < 1) {
+    absorptionProfile = "fast";
+    absorptionDetail = "High GI with little fat/protein to slow absorption — expect rapid blood sugar spike";
+  } else {
+    absorptionProfile = "gradual";
+    absorptionDetail = "Moderate absorption rate — standard bolus timing should work";
+  }
+
+  return {
+    total_fat_g: Math.round(totalFatG * 10) / 10,
+    total_protein_g: Math.round(totalProteinG * 10) / 10,
+    fpu: fpuRounded,
+    fpu_carb_equiv_g: fpuCarbEquiv,
+    fpu_duration_hours: durationHours,
+    absorption_profile: absorptionProfile,
+    absorption_detail: absorptionDetail,
+  };
+}
+
 const FOOD_IDENTIFICATION_PROMPT = `You are a food identification expert. Analyze this photo and identify all visible food items.
 
 For each food item, provide:
@@ -113,6 +161,8 @@ For each food item, provide:
    - est_calcium_mg_per_100g
    - est_carbs_g_per_100g (total carbohydrates)
    - est_fiber_g_per_100g
+   - est_fat_g_per_100g
+   - est_protein_g_per_100g
    - est_glycemic_index (0-100 scale; use 0 for non-carb foods like meats)
 
 These estimates are used as a fallback when the food is not in our reference database, so always provide them.
@@ -127,9 +177,9 @@ IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings,
 Respond ONLY in this exact JSON format, no other text:
 {
   "foods": [
-    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 5, "est_calcium_mg_per_100g": 20, "est_carbs_g_per_100g": 45, "est_fiber_g_per_100g": 2, "est_glycemic_index": 65 },
-    { "name": "empanada shell", "weight_grams": 40, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 1, "est_calcium_mg_per_100g": 15, "est_carbs_g_per_100g": 52, "est_fiber_g_per_100g": 2, "est_glycemic_index": 70 },
-    { "name": "beef", "weight_grams": 70, "confidence": "low", "alternatives": ["chicken", "cheese", "beans"], "enclosed": true, "enclosed_in": "empanada", "est_oxalate_mg_per_100g": 0, "est_calcium_mg_per_100g": 12, "est_carbs_g_per_100g": 0, "est_fiber_g_per_100g": 0, "est_glycemic_index": 0 }
+    { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 5, "est_calcium_mg_per_100g": 20, "est_carbs_g_per_100g": 45, "est_fiber_g_per_100g": 2, "est_fat_g_per_100g": 12, "est_protein_g_per_100g": 8, "est_glycemic_index": 65 },
+    { "name": "empanada shell", "weight_grams": 40, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 1, "est_calcium_mg_per_100g": 15, "est_carbs_g_per_100g": 52, "est_fiber_g_per_100g": 2, "est_fat_g_per_100g": 18, "est_protein_g_per_100g": 7, "est_glycemic_index": 70 },
+    { "name": "beef", "weight_grams": 70, "confidence": "low", "alternatives": ["chicken", "cheese", "beans"], "enclosed": true, "enclosed_in": "empanada", "est_oxalate_mg_per_100g": 0, "est_calcium_mg_per_100g": 12, "est_carbs_g_per_100g": 0, "est_fiber_g_per_100g": 0, "est_fat_g_per_100g": 15, "est_protein_g_per_100g": 26, "est_glycemic_index": 0 }
   ],
   "meal_description": "Brief description of the meal"
 }
@@ -188,6 +238,8 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
     let totalNetCarbs = 0;
     let totalCarbs = 0;
     let totalFiber = 0;
+    let totalFat = 0;
+    let totalProtein = 0;
     let maxGI = 0;
 
     for (const f of foodResults) {
@@ -196,6 +248,8 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       if (f.net_carbs_g !== null) totalNetCarbs += f.net_carbs_g;
       if (f.total_carbs_g !== null) totalCarbs += f.total_carbs_g;
       if (f.fiber_g !== null) totalFiber += f.fiber_g;
+      if (f.fat_g !== null) totalFat += f.fat_g;
+      if (f.protein_g !== null) totalProtein += f.protein_g;
       if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
     }
 
@@ -206,6 +260,7 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
 
     const giLabel = maxGI >= 70 ? "high" : maxGI >= 56 ? "medium" : "low";
+    const fpuSummary = calculateFpuSummary(totalFat, totalProtein, totalNetCarbs, maxGI);
 
     res.json({
       meal_description: identified.meal_description,
@@ -220,6 +275,7 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
         highest_gi: maxGI,
         gi_label: giLabel,
       },
+      fpu_summary: fpuSummary,
     });
   } catch (err) {
     if (err.status === 401) {
@@ -243,6 +299,8 @@ app.post("/api/recalculate", (req, res) => {
   let totalNetCarbs = 0;
   let totalCarbs = 0;
   let totalFiber = 0;
+  let totalFat = 0;
+  let totalProtein = 0;
   let maxGI = 0;
 
   for (const f of foodResults) {
@@ -251,6 +309,8 @@ app.post("/api/recalculate", (req, res) => {
     if (f.net_carbs_g !== null) totalNetCarbs += f.net_carbs_g;
     if (f.total_carbs_g !== null) totalCarbs += f.total_carbs_g;
     if (f.fiber_g !== null) totalFiber += f.fiber_g;
+    if (f.fat_g !== null) totalFat += f.fat_g;
+    if (f.protein_g !== null) totalProtein += f.protein_g;
     if (f.glycemic_index !== null && f.glycemic_index > maxGI) maxGI = f.glycemic_index;
   }
 
@@ -259,6 +319,7 @@ app.post("/api/recalculate", (req, res) => {
   const riskLevel =
     totalOxalate > 200 ? "high" : totalOxalate > 100 ? "moderate" : totalOxalate > 25 ? "low" : "very low";
   const giLabel = maxGI >= 70 ? "high" : maxGI >= 56 ? "medium" : "low";
+  const fpuSummary = calculateFpuSummary(totalFat, totalProtein, totalNetCarbs, maxGI);
 
   res.json({
     foods: foodResults,
@@ -272,6 +333,7 @@ app.post("/api/recalculate", (req, res) => {
       highest_gi: maxGI,
       gi_label: giLabel,
     },
+    fpu_summary: fpuSummary,
   });
 });
 
@@ -289,6 +351,8 @@ Respond ONLY in this exact JSON format, no other text:
   "calcium_mg_per_100g": 20,
   "carbs_g_per_100g": 45,
   "fiber_g_per_100g": 2,
+  "fat_g_per_100g": 12,
+  "protein_g_per_100g": 8,
   "glycemic_index": 65,
   "ingredients_summary": "brief list of main ingredients"
 }
@@ -340,6 +404,8 @@ app.post("/api/scan-label", upload.single("label"), async (req, res) => {
       est_calcium_mg_per_100g: parsed.calcium_mg_per_100g ?? 0,
       est_carbs_g_per_100g: parsed.carbs_g_per_100g ?? 0,
       est_fiber_g_per_100g: parsed.fiber_g_per_100g ?? 0,
+      est_fat_g_per_100g: parsed.fat_g_per_100g ?? 0,
+      est_protein_g_per_100g: parsed.protein_g_per_100g ?? 0,
       est_glycemic_index: parsed.glycemic_index ?? 0,
       ingredients_summary: parsed.ingredients_summary || "",
       source: "label",

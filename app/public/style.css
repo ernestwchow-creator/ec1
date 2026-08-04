@@ -386,6 +386,15 @@ main {
   margin-bottom: 20px;
 }
 
+.absorption-banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
 .card.warn {
   border-color: var(--risk-moderate);
   background: var(--risk-moderate-bg);

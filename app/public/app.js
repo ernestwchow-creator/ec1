@@ -76,6 +76,8 @@ function rememberLabelData(foodName, labelData) {
       est_calcium_mg_per_100g: labelData.est_calcium_mg_per_100g,
       est_carbs_g_per_100g: labelData.est_carbs_g_per_100g,
       est_fiber_g_per_100g: labelData.est_fiber_g_per_100g,
+      est_fat_g_per_100g: labelData.est_fat_g_per_100g,
+      est_protein_g_per_100g: labelData.est_protein_g_per_100g,
       est_glycemic_index: labelData.est_glycemic_index,
       source: "label",
     },
@@ -216,6 +218,8 @@ async function recalculateFromFoods(foods) {
     est_calcium_mg_per_100g: f.est_calcium_mg_per_100g ?? null,
     est_carbs_g_per_100g: f.est_carbs_g_per_100g ?? null,
     est_fiber_g_per_100g: f.est_fiber_g_per_100g ?? null,
+    est_fat_g_per_100g: f.est_fat_g_per_100g ?? null,
+    est_protein_g_per_100g: f.est_protein_g_per_100g ?? null,
     est_glycemic_index: f.est_glycemic_index ?? null,
     source: f.source || null,
   }));
@@ -325,6 +329,35 @@ function renderResults(data) {
   giBanner.textContent = giMessages[carbs.gi_label] || "";
   giBanner.className = "gi-banner " + ({ high: "risk-high", medium: "risk-moderate", low: "risk-low" }[carbs.gi_label] || "");
 
+  const fpu = data.fpu_summary;
+  if (fpu) {
+    $("#total-fat").textContent = fpu.total_fat_g;
+    $("#total-protein").textContent = fpu.total_protein_g;
+    $("#fpu-value").textContent = fpu.fpu;
+
+    const fpuCard = $("#fpu-card");
+    fpuCard.classList.remove("warn", "accent");
+    if (fpu.fpu >= 2) fpuCard.classList.add("warn");
+    else if (fpu.fpu >= 1) fpuCard.classList.add("accent");
+
+    if (fpu.fpu_carb_equiv_g > 0) {
+      $("#fpu-equiv").textContent = `≈ ${fpu.fpu_carb_equiv_g}g slow carbs` + (fpu.fpu_duration_hours ? ` / ${fpu.fpu_duration_hours}h` : "");
+    } else {
+      $("#fpu-equiv").textContent = "no delayed effect";
+    }
+
+    const absBanner = $("#absorption-banner");
+    const absStyles = {
+      fast: "risk-high",
+      dual: "risk-moderate",
+      extended: "risk-moderate",
+      gradual: "risk-low",
+      minimal: "risk-verylow",
+    };
+    absBanner.textContent = fpu.absorption_detail;
+    absBanner.className = "absorption-banner " + (absStyles[fpu.absorption_profile] || "risk-low");
+  }
+
   renderFoodList(data.foods);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -378,7 +411,7 @@ function renderFoodList(foods) {
         ${f.oxalate_range_mg ? ` · Ox range: ${f.oxalate_range_mg[0]}–${f.oxalate_range_mg[1]} mg` : ""}
         ${confLabel}${enclosedLabel}
       </div>
-      ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
+      ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}${f.fat_g !== null ? " · Fat: " + f.fat_g + "g" : ""}${f.protein_g !== null ? " · Protein: " + f.protein_g + "g" : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
       ${sourceHtml(f)}
       ${f.source === "label" ? `<div class="food-label-source">Values from scanned nutritional label</div>` : ""}
@@ -509,6 +542,8 @@ async function applyCorrection(newName, newWeight) {
     est_calcium_mg_per_100g: scannedLabel.est_calcium_mg_per_100g,
     est_carbs_g_per_100g: scannedLabel.est_carbs_g_per_100g,
     est_fiber_g_per_100g: scannedLabel.est_fiber_g_per_100g,
+    est_fat_g_per_100g: scannedLabel.est_fat_g_per_100g,
+    est_protein_g_per_100g: scannedLabel.est_protein_g_per_100g,
     est_glycemic_index: scannedLabel.est_glycemic_index,
     source: "label",
   } : {
@@ -516,6 +551,8 @@ async function applyCorrection(newName, newWeight) {
     est_calcium_mg_per_100g: food.est_calcium_mg_per_100g,
     est_carbs_g_per_100g: food.est_carbs_g_per_100g,
     est_fiber_g_per_100g: food.est_fiber_g_per_100g,
+    est_fat_g_per_100g: food.est_fat_g_per_100g,
+    est_protein_g_per_100g: food.est_protein_g_per_100g,
     est_glycemic_index: food.est_glycemic_index,
   };
 
@@ -534,6 +571,8 @@ async function applyCorrection(newName, newWeight) {
     est_calcium_mg_per_100g: (i === correctionIndex ? estimates.est_calcium_mg_per_100g : f.est_calcium_mg_per_100g) ?? null,
     est_carbs_g_per_100g: (i === correctionIndex ? estimates.est_carbs_g_per_100g : f.est_carbs_g_per_100g) ?? null,
     est_fiber_g_per_100g: (i === correctionIndex ? estimates.est_fiber_g_per_100g : f.est_fiber_g_per_100g) ?? null,
+    est_fat_g_per_100g: (i === correctionIndex ? estimates.est_fat_g_per_100g : f.est_fat_g_per_100g) ?? null,
+    est_protein_g_per_100g: (i === correctionIndex ? estimates.est_protein_g_per_100g : f.est_protein_g_per_100g) ?? null,
     est_glycemic_index: (i === correctionIndex ? estimates.est_glycemic_index : f.est_glycemic_index) ?? null,
     source: i === correctionIndex ? (estimates.source || f.source) : (f.source || null),
   }));
@@ -547,6 +586,7 @@ async function applyCorrection(newName, newWeight) {
     currentResults.risk_level = data.risk_level;
     currentResults.calcium_recommendation = data.calcium_recommendation;
     currentResults.carb_summary = data.carb_summary;
+    currentResults.fpu_summary = data.fpu_summary;
     renderResults(currentResults);
   } catch (err) {
     showError("Recalculation failed: " + err.message);
@@ -628,6 +668,7 @@ labelInput.addEventListener("change", async (e) => {
       `<div class="label-values">` +
       `Ox: ${data.est_oxalate_mg_per_100g} mg · Ca: ${data.est_calcium_mg_per_100g} mg · ` +
       `Carbs: ${data.est_carbs_g_per_100g}g · Fiber: ${data.est_fiber_g_per_100g}g · ` +
+      `Fat: ${data.est_fat_g_per_100g}g · Protein: ${data.est_protein_g_per_100g}g · ` +
       `Net: ${nc}g · GI: ${data.est_glycemic_index}` +
       `${data.ingredients_summary ? `<br>Ingredients: ${esc(data.ingredients_summary)}` : ""}` +
       `</div>`;
@@ -699,6 +740,8 @@ async function loadReference() {
           <td>${f.oxalate_mg_per_100g}</td>
           <td>${f.calcium_mg_per_100g || 0}</td>
           <td>${nc}</td>
+          <td>${f.fat_g_per_100g != null ? f.fat_g_per_100g : "—"}</td>
+          <td>${f.protein_g_per_100g != null ? f.protein_g_per_100g : "—"}</td>
           <td>${f.glycemic_index || "—"}</td>
         </tr>`;
       }).join("");
