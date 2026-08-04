@@ -42,6 +42,21 @@
       <input type="number" id="tablet-size-custom" class="hidden" placeholder="mg" min="50" max="1500">
     </div>
     <p class="hint">Set this to match the calcium supplement tablets you use.</p>
+
+    <div class="settings-divider"></div>
+    <label class="settings-group-label">Show sections</label>
+    <label class="toggle-label">
+      <input type="checkbox" id="toggle-oxalate" checked>
+      <span>Oxalate &amp; Calcium</span>
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="toggle-carbs" checked>
+      <span>Carbohydrates &amp; GI</span>
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="toggle-fpu" checked>
+      <span>Fat-Protein Units (Insulin Timing)</span>
+    </label>
   </div>
 
   <div id="install-banner" class="install-banner hidden">
@@ -100,69 +115,75 @@
       <h2>Analysis Results</h2>
       <p id="meal-description" class="meal-desc"></p>
 
-      <div id="risk-banner" class="risk-banner"></div>
+      <div id="section-oxalate">
+        <div id="risk-banner" class="risk-banner"></div>
 
-      <!-- Oxalate & Calcium -->
-      <h3 class="section-title">Oxalate &amp; Calcium</h3>
-      <div class="summary-cards">
-        <div class="card">
-          <div class="card-label">Total Oxalate</div>
-          <div class="card-value" id="total-oxalate">&mdash;</div>
-          <div class="card-unit">mg</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Dietary Ca</div>
-          <div class="card-value" id="dietary-calcium">&mdash;</div>
-          <div class="card-unit">mg in food</div>
-        </div>
-        <div class="card accent">
-          <div class="card-label">Supplement</div>
-          <div class="card-value" id="supplement-calcium">&mdash;</div>
-          <div class="card-unit" id="tablet-info">mg / 0 tablets</div>
+        <!-- Oxalate & Calcium -->
+        <h3 class="section-title">Oxalate &amp; Calcium</h3>
+        <div class="summary-cards">
+          <div class="card">
+            <div class="card-label">Total Oxalate</div>
+            <div class="card-value" id="total-oxalate">&mdash;</div>
+            <div class="card-unit">mg</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Dietary Ca</div>
+            <div class="card-value" id="dietary-calcium">&mdash;</div>
+            <div class="card-unit">mg in food</div>
+          </div>
+          <div class="card accent">
+            <div class="card-label">Supplement</div>
+            <div class="card-value" id="supplement-calcium">&mdash;</div>
+            <div class="card-unit" id="tablet-info">mg / 0 tablets</div>
+          </div>
         </div>
       </div>
 
-      <!-- Carbs & GI -->
-      <h3 class="section-title">Carbohydrates &amp; Glycemic Impact</h3>
-      <div class="summary-cards">
-        <div class="card">
-          <div class="card-label">Total Carbs</div>
-          <div class="card-value" id="total-carbs">&mdash;</div>
-          <div class="card-unit">g</div>
+      <div id="section-carbs">
+        <!-- Carbs & GI -->
+        <h3 class="section-title">Carbohydrates &amp; Glycemic Impact</h3>
+        <div class="summary-cards">
+          <div class="card">
+            <div class="card-label">Total Carbs</div>
+            <div class="card-value" id="total-carbs">&mdash;</div>
+            <div class="card-unit">g</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Fiber</div>
+            <div class="card-value" id="total-fiber">&mdash;</div>
+            <div class="card-unit">g</div>
+          </div>
+          <div class="card" id="net-carbs-card">
+            <div class="card-label">Net Carbs</div>
+            <div class="card-value" id="net-carbs">&mdash;</div>
+            <div class="card-unit">g</div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-label">Fiber</div>
-          <div class="card-value" id="total-fiber">&mdash;</div>
-          <div class="card-unit">g</div>
-        </div>
-        <div class="card" id="net-carbs-card">
-          <div class="card-label">Net Carbs</div>
-          <div class="card-value" id="net-carbs">&mdash;</div>
-          <div class="card-unit">g</div>
-        </div>
+        <div id="gi-banner" class="gi-banner"></div>
       </div>
-      <div id="gi-banner" class="gi-banner"></div>
 
-      <!-- Fat-Protein Units -->
-      <h3 class="section-title">Fat-Protein Units (Insulin Timing)</h3>
-      <div class="summary-cards">
-        <div class="card">
-          <div class="card-label">Fat</div>
-          <div class="card-value" id="total-fat">&mdash;</div>
-          <div class="card-unit">g</div>
+      <div id="section-fpu">
+        <!-- Fat-Protein Units -->
+        <h3 class="section-title">Fat-Protein Units (Insulin Timing)</h3>
+        <div class="summary-cards">
+          <div class="card">
+            <div class="card-label">Fat</div>
+            <div class="card-value" id="total-fat">&mdash;</div>
+            <div class="card-unit">g</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Protein</div>
+            <div class="card-value" id="total-protein">&mdash;</div>
+            <div class="card-unit">g</div>
+          </div>
+          <div class="card" id="fpu-card">
+            <div class="card-label">FPU</div>
+            <div class="card-value" id="fpu-value">&mdash;</div>
+            <div class="card-unit" id="fpu-equiv">slow carb equiv</div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-label">Protein</div>
-          <div class="card-value" id="total-protein">&mdash;</div>
-          <div class="card-unit">g</div>
-        </div>
-        <div class="card" id="fpu-card">
-          <div class="card-label">FPU</div>
-          <div class="card-value" id="fpu-value">&mdash;</div>
-          <div class="card-unit" id="fpu-equiv">slow carb equiv</div>
-        </div>
+        <div id="absorption-banner" class="absorption-banner"></div>
       </div>
-      <div id="absorption-banner" class="absorption-banner"></div>
 
       <!-- Food details -->
       <h3 class="section-title">Food Breakdown</h3>

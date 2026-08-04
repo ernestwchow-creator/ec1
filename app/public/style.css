@@ -192,6 +192,34 @@ main {
   line-height: 1.4;
 }
 
+.settings-divider {
+  border-top: 1px solid var(--border);
+  margin: 14px 0 10px;
+}
+
+.settings-group-label {
+  font-size: 13px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
 .hidden { display: none !important; }
 
 /* Photo area */

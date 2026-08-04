@@ -105,6 +105,7 @@ const tabletCustom = $("#tablet-size-custom");
 settingsBtn.addEventListener("click", () => {
   settingsPanel.classList.toggle("hidden");
   if (!settingsPanel.classList.contains("hidden")) {
+    syncTogglesFromStorage();
     const saved = getTabletSize();
     const match = [...tabletSelect.options].find((o) => o.value === saved.toString());
     if (match) {
@@ -132,6 +133,54 @@ tabletCustom.addEventListener("change", () => {
   const val = parseInt(tabletCustom.value);
   if (val >= 50 && val <= 1500) setTabletSize(val);
 });
+
+// -- Section Visibility --
+const SECTIONS_KEY = "oxacheck_sections";
+const SECTION_DEFAULTS = { oxalate: true, carbs: true, fpu: true };
+
+function getSectionVisibility() {
+  try {
+    return { ...SECTION_DEFAULTS, ...JSON.parse(localStorage.getItem(SECTIONS_KEY)) };
+  } catch { return { ...SECTION_DEFAULTS }; }
+}
+
+function setSectionVisibility(sections) {
+  localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections));
+}
+
+function applySectionVisibility() {
+  const vis = getSectionVisibility();
+  const toggle = (id, on) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? "" : "none";
+  };
+  toggle("section-oxalate", vis.oxalate);
+  toggle("section-carbs", vis.carbs);
+  toggle("section-fpu", vis.fpu);
+}
+
+const toggleOxalate = $("#toggle-oxalate");
+const toggleCarbs = $("#toggle-carbs");
+const toggleFpu = $("#toggle-fpu");
+
+function syncTogglesFromStorage() {
+  const vis = getSectionVisibility();
+  toggleOxalate.checked = vis.oxalate;
+  toggleCarbs.checked = vis.carbs;
+  toggleFpu.checked = vis.fpu;
+}
+
+[toggleOxalate, toggleCarbs, toggleFpu].forEach((cb, i) => {
+  const key = ["oxalate", "carbs", "fpu"][i];
+  cb.addEventListener("change", () => {
+    const vis = getSectionVisibility();
+    vis[key] = cb.checked;
+    setSectionVisibility(vis);
+    applySectionVisibility();
+  });
+});
+
+syncTogglesFromStorage();
 
 // -- State --
 let capturedImage = null;
@@ -360,6 +409,7 @@ function renderResults(data) {
 
   renderFoodList(data.foods);
   $("#add-food-btn").classList.remove("hidden");
+  applySectionVisibility();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
