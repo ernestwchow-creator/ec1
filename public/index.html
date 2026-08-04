@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chord Transposer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f0f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 { font-size: 1.3rem; font-weight: 600; }
+
+    .auth-btn {
+      background: #6c5ce7;
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .auth-btn:hover { background: #5a4bd1; }
+    .auth-btn.logout { background: transparent; border: 1px solid #555; }
+    .auth-btn.logout:hover { background: #333; }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+
+    .url-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .url-row input {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .url-row input:focus { border-color: #6c5ce7; }
+
+    .btn {
+      background: #6c5ce7;
+      color: #fff;
+      border: none;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #5a4bd1; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .btn.success { background: #00b894; }
+    .btn.success:hover { background: #00a381; }
+
+    .doc-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #1a1a2e;
+    }
+
+    .chart-selector {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .chart-tab {
+      padding: 0.4rem 1rem;
+      border: 2px solid #ddd;
+      border-radius: 20px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .chart-tab.active {
+      border-color: #6c5ce7;
+      background: #f0edff;
+      color: #6c5ce7;
+      font-weight: 600;
+    }
+
+    .chart-table-wrapper {
+      overflow-x: auto;
+      margin-bottom: 1rem;
+    }
+
+    .chord-table {
+      border-collapse: collapse;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+
+    .chord-table td {
+      border: 1px solid #e0e0e0;
+      padding: 0.4rem 0.6rem;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .chord-table td:first-child {
+      background: #f8f8fc;
+      font-weight: 600;
+      color: #555;
+      text-align: left;
+    }
+
+    .chord-table tr:hover td { background: #fafafe; }
+    .chord-table tr:hover td:first-child { background: #f0f0f8; }
+
+    .transpose-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .semitone-group {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .semitone-btn {
+      width: 36px;
+      height: 36px;
+      border: 2px solid #ddd;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      color: #333;
+    }
+    .semitone-btn:hover { border-color: #6c5ce7; color: #6c5ce7; }
+
+    .semitone-display {
+      font-size: 1.1rem;
+      font-weight: 700;
+      min-width: 2.5rem;
+      text-align: center;
+      color: #6c5ce7;
+    }
+
+    .key-display {
+      font-size: 0.95rem;
+      color: #555;
+    }
+    .key-display strong { color: #6c5ce7; }
+
+    .flat-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .flat-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #6c5ce7;
+    }
+
+    .section-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .transposed-section { margin-top: 1rem; }
+
+    .chord-table.transposed td { color: #6c5ce7; }
+    .chord-table.transposed td:first-child { color: #555; }
+
+    .message {
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .message.error { background: #ffe0e0; color: #c0392b; }
+    .message.success { background: #e0ffe8; color: #27ae60; }
+
+    .loading { opacity: 0.6; pointer-events: none; }
+
+    .login-prompt {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+    .login-prompt p {
+      margin-bottom: 1.5rem;
+      color: #666;
+      font-size: 1rem;
+    }
+
+    .hidden { display: none !important; }
+
+    .setup-info {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 1rem;
+      line-height: 1.6;
+    }
+    .setup-info code {
+      background: #f0f0f5;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 0.8rem 1rem; }
+      .card { padding: 1rem; }
+      .url-row { flex-direction: column; }
+      .transpose-controls { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chord Transposer</h1>
+    <div id="auth-area"></div>
+  </header>
+
+  <main>
+    <div id="login-section" class="card login-prompt hidden">
+      <p>Sign in with your Google account to read and edit chord charts in Google Docs.</p>
+      <a href="/auth" class="auth-btn">Sign in with Google</a>
+    </div>
+
+    <div id="app-section" class="hidden">
+      <div class="card">
+        <h2>Load a chord chart</h2>
+        <div class="url-row">
+          <input type="text" id="doc-url" placeholder="Paste a Google Doc URL..." />
+          <button class="btn" id="load-btn" onclick="loadDocument()">Load</button>
+        </div>
+        <div id="load-error"></div>
+      </div>
+
+      <div id="chart-area" class="hidden">
+        <div class="card">
+          <div class="doc-title" id="doc-title"></div>
+
+          <div id="multi-chart-selector" class="chart-selector hidden"></div>
+
+          <div class="section-label">Original</div>
+          <div class="chart-table-wrapper" id="original-chart"></div>
+
+          <div class="transpose-controls">
+            <div class="semitone-group">
+              <button class="semitone-btn" onclick="changeSemitones(-1)">-</button>
+              <span class="semitone-display" id="semitone-display">0</span>
+              <button class="semitone-btn" onclick="changeSemitones(1)">+</button>
+            </div>
+            <div class="key-display" id="key-display"></div>
+            <label class="flat-toggle">
+              <input type="checkbox" id="use-flats" onchange="updatePreview()" />
+              Use flats
+            </label>
+          </div>
+
+          <div id="transposed-section" class="transposed-section hidden">
+            <div class="section-label">Transposed</div>
+            <div class="chart-table-wrapper" id="transposed-chart"></div>
+            <button class="btn success" id="add-btn" onclick="addToDocument()">
+              Add transposed chart to document
+            </button>
+          </div>
+
+          <div id="result-message"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+    const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb']);
+
+    function noteToIndex(note) {
+      const n = note.replace('♯','#').replace('♭','b');
+      let i = NOTES_SHARP.indexOf(n);
+      if (i === -1) i = NOTES_FLAT.indexOf(n);
+      return i;
+    }
+
+    function transposeNote(note, semi, useFlats) {
+      const idx = noteToIndex(note);
+      if (idx === -1) return note;
+      const ni = ((idx + semi) % 12 + 12) % 12;
+      return useFlats ? NOTES_FLAT[ni] : NOTES_SHARP[ni];
+    }
+
+    function transposeToken(token, semi, useFlats) {
+      const m = token.match(/^([^A-G]*)([A-G])([#b♯♭]?)(.*)/);
+      if (!m) return token;
+      const [, prefix, letter, acc, rest] = m;
+      const root = letter + acc;
+      const tr = transposeNote(root, semi, useFlats);
+      const bm = rest.match(/^(.*)\/([A-G])([#b♯♭]?)$/);
+      if (bm) {
+        const [, q, bl, ba] = bm;
+        return prefix + tr + q + '/' + transposeNote(bl + ba, semi, useFlats);
+      }
+      return prefix + tr + rest;
+    }
+
+    function transposeCellText(text, semi, useFlats) {
+      if (!text || !text.trim()) return text;
+      return text.split(/(\s+)/).map(p =>
+        /^\s*$/.test(p) ? p : transposeToken(p, semi, useFlats)
+      ).join('');
+    }
+
+    let state = {
+      doc: null,
+      selectedChart: 0,
+      semitones: 0,
+      useFlats: false
+    };
+
+    async function checkAuth() {
+      const res = await fetch('/api/me');
+      const { authenticated } = await res.json();
+      const authArea = document.getElementById('auth-area');
+      if (authenticated) {
+        authArea.innerHTML = '<a href="/auth/logout" class="auth-btn logout">Sign out</a>';
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('app-section').classList.remove('hidden');
+      } else {
+        authArea.innerHTML = '<a href="/auth" class="auth-btn">Sign in</a>';
+        document.getElementById('login-section').classList.remove('hidden');
+        document.getElementById('app-section').classList.add('hidden');
+      }
+    }
+
+    async function loadDocument() {
+      const url = document.getElementById('doc-url').value.trim();
+      if (!url) return;
+
+      const btn = document.getElementById('load-btn');
+      const errDiv = document.getElementById('load-error');
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      errDiv.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/document?url=' + encodeURIComponent(url));
+        const data = await res.json();
+
+        if (!res.ok) {
+          errDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) + '</div>';
+          return;
+        }
+
+        if (data.chordCharts.length === 0) {
+          errDiv.innerHTML = '<div class="message error">No chord charts found in this document.</div>';
+          return;
+        }
+
+        state.doc = data;
+        state.selectedChart = 0;
+        state.semitones = 0;
+        document.getElementById('use-flats').checked = false;
+        state.useFlats = false;
+
+        displayDocument();
+      } catch (e) {
+        errDiv.innerHTML = '<div class="message error">Failed to load document. Check the URL and try again.</div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Load';
+      }
+    }
+
+    function displayDocument() {
+      document.getElementById('chart-area').classList.remove('hidden');
+      document.getElementById('doc-title').textContent = state.doc.title;
+      document.getElementById('result-message').innerHTML = '';
+
+      const selector = document.getElementById('multi-chart-selector');
+      if (state.doc.chordCharts.length > 1) {
+        selector.classList.remove('hidden');
+        selector.innerHTML = state.doc.chordCharts.map((chart, i) =>
+          '<button class="chart-tab' + (i === state.selectedChart ? ' active' : '') +
+          '" onclick="selectChart(' + i + ')">Chart ' + (i + 1) +
+          ' (Key of ' + escapeHtml(chart.detectedKey) + ')</button>'
+        ).join('');
+      } else {
+        selector.classList.add('hidden');
+      }
+
+      renderOriginal();
+      updateKeyDisplay();
+      updatePreview();
+    }
+
+    function selectChart(idx) {
+      state.selectedChart = idx;
+      state.semitones = 0;
+      displayDocument();
+    }
+
+    function renderOriginal() {
+      const chart = state.doc.chordCharts[state.selectedChart];
+      document.getElementById('original-chart').innerHTML = renderTable(chart.data, false);
+    }
+
+    function renderTable(data, isTransposed) {
+      let html = '<table class="chord-table' + (isTransposed ? ' transposed' : '') + '">';
+      for (const row of data) {
+        html += '<tr>';
+        for (const cell of row) {
+          html += '<td>' + escapeHtml(cell || '') + '</td>';
+        }
+        html += '</tr>';
+      }
+      html += '</table>';
+      return html;
+    }
+
+    function changeSemitones(delta) {
+      state.semitones = ((state.semitones + delta) % 12 + 12) % 12;
+      if (state.semitones > 6) state.semitones -= 12;
+      updatePreview();
+      updateKeyDisplay();
+    }
+
+    function updateKeyDisplay() {
+      const chart = state.doc.chordCharts[state.selectedChart];
+      const origKey = chart.detectedKey;
+      const useFlats = document.getElementById('use-flats').checked;
+      const newKey = transposeNote(origKey, state.semitones, useFlats);
+
+      document.getElementById('semitone-display').textContent =
+        (state.semitones > 0 ? '+' : '') + state.semitones;
+
+      const sign = state.semitones > 0 ? '+' : '';
+      document.getElementById('key-display').innerHTML =
+        'Key of <strong>' + escapeHtml(origKey) + '</strong> &rarr; <strong>' +
+        escapeHtml(newKey) + '</strong> (' + sign + state.semitones + ' semitones)';
+    }
+
+    function updatePreview() {
+      const useFlats = document.getElementById('use-flats').checked;
+      state.useFlats = useFlats;
+
+      const section = document.getElementById('transposed-section');
+      if (state.semitones === 0) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      const chart = state.doc.chordCharts[state.selectedChart];
+      const transposed = chart.data.map((row) =>
+        row.map((cell, c) => c === 0 ? cell : transposeCellText(cell, state.semitones, useFlats))
+      );
+
+      document.getElementById('transposed-chart').innerHTML = renderTable(transposed, true);
+      updateKeyDisplay();
+    }
+
+    async function addToDocument() {
+      if (state.semitones === 0) return;
+
+      const btn = document.getElementById('add-btn');
+      const msgDiv = document.getElementById('result-message');
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      msgDiv.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/transpose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documentId: state.doc.documentId,
+            chartIndex: state.selectedChart,
+            semitones: state.semitones,
+            useFlats: state.useFlats
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          const docUrl = 'https://docs.google.com/document/d/' + state.doc.documentId;
+          msgDiv.innerHTML =
+            '<div class="message success">Transposed chart added! ' +
+            '<a href="' + docUrl + '" target="_blank">Open document</a></div>';
+        } else {
+          msgDiv.innerHTML = '<div class="message error">' + escapeHtml(data.error) + '</div>';
+        }
+      } catch (e) {
+        msgDiv.innerHTML = '<div class="message error">Failed to add chart. Please try again.</div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add transposed chart to document';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    document.getElementById('doc-url').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loadDocument();
+    });
+
+    checkAuth();
+  </script>
+</body>
+</html>

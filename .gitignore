@@ -1,7 +1,2 @@
-node_modules/
-cache/
-artifacts/
-typechain-types/
-coverage/
-coverage.json
+node_modules
 .env
