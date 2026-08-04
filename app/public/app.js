@@ -495,6 +495,7 @@ const modalPrompt = $("#modal-prompt");
 const customInput = $("#custom-food-input");
 const customBtn = $("#custom-food-btn");
 const cancelBtn = $("#modal-cancel");
+const deleteBtn = $("#modal-delete");
 const rememberCheck = $("#remember-check");
 const weightInput = $("#weight-input");
 const saveWeightBtn = $("#modal-save-weight");
@@ -584,6 +585,7 @@ function openCorrectionModal(index) {
   labelStatus.classList.add("hidden");
   labelStatus.className = "label-status hidden";
   labelInput.value = "";
+  deleteBtn.classList.remove("hidden");
   modal.classList.remove("hidden");
 }
 
@@ -685,6 +687,7 @@ function openAddFoodModal() {
   labelStatus.className = "label-status hidden";
   labelInput.value = "";
   saveWeightBtn.textContent = "Add Food";
+  deleteBtn.classList.add("hidden");
   modal.classList.remove("hidden");
   customInput.focus();
 }
@@ -794,6 +797,37 @@ saveWeightBtn.addEventListener("click", () => {
   applyCorrection(food.name, getWeightInGrams());
 });
 
+async function deleteFood(index) {
+  if (!currentResults || index < 0 || index >= currentResults.foods.length) return;
+
+  const remaining = currentResults.foods.filter((_, i) => i !== index);
+  closeModal();
+
+  if (remaining.length === 0) {
+    resetCapture();
+    return;
+  }
+
+  try {
+    const data = await recalculateFromFoods(remaining);
+    currentResults.foods = data.foods;
+    currentResults.total_oxalate_mg = data.total_oxalate_mg;
+    currentResults.risk_level = data.risk_level;
+    currentResults.calcium_recommendation = data.calcium_recommendation;
+    currentResults.carb_summary = data.carb_summary;
+    currentResults.fpu_summary = data.fpu_summary;
+    currentResults.meal_description = data.foods.map(f => f.name).join(", ");
+    renderResults(currentResults);
+  } catch (err) {
+    showError("Recalculation failed: " + err.message);
+  }
+}
+
+deleteBtn.addEventListener("click", () => {
+  if (correctionIndex < 0 || !currentResults) return;
+  deleteFood(correctionIndex);
+});
+
 modalBackdrop.addEventListener("click", closeModal);
 cancelBtn.addEventListener("click", closeModal);
 customBtn.addEventListener("click", () => {
@@ -882,6 +916,39 @@ if (clearMemBtn) {
 
 // -- Add Missing Food --
 $("#add-food-btn").addEventListener("click", openAddFoodModal);
+
+// -- Re-estimate --
+$("#reestimate-btn").addEventListener("click", async () => {
+  if (!capturedImage) return;
+
+  $("#results-section").classList.add("hidden");
+  $("#loading-section").classList.remove("hidden");
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: capturedImage, tablet_size_mg: getTabletSize() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const { foods: correctedFoods, changed } = applyMemoryToResults(data.foods);
+    if (changed) {
+      const recalc = await recalculateFromFoods(correctedFoods);
+      currentResults = { ...data, ...recalc };
+      currentResults.meal_description = data.meal_description;
+    } else {
+      currentResults = data;
+    }
+    renderResults(currentResults);
+  } catch (err) {
+    showError("Re-estimate failed: " + err.message);
+    $("#results-section").classList.remove("hidden");
+  } finally {
+    $("#loading-section").classList.add("hidden");
+  }
+});
 
 // -- New Analysis --
 $("#new-analysis-btn").addEventListener("click", resetCapture);
