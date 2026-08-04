@@ -194,10 +194,24 @@ If you open `/auth` from an origin that disagrees with `BASE_URL`, the app now
 detects it first and shows both values along with the exact string to
 register, instead of handing you Google's generic error.
 
+**`Error 403: access_denied` — "can only be accessed by developer-approved testers"**
+The consent screen is in *Testing* mode and your account is not on the tester
+list. Owning the Cloud project does not grant access by itself. Either:
+
+- **APIs & Services → OAuth consent screen → Audience → Test users → Add
+  users**, and add your own Google address; or
+- **Publish app**, which removes the tester list entirely (see below).
+
 **Signed out every 7 days**
-The OAuth consent screen is still in *Testing* mode, where Google expires
-refresh tokens after 7 days. Publish the app (it stays private to you) to stop
-that.
+In *Testing* mode Google expires refresh tokens after 7 days, so the durable
+session cannot outlive that. **OAuth consent screen → Publishing status →
+Publish app** fixes it and the app stays private to you — publishing controls
+who may sign in, not discoverability.
+
+Because this app uses a sensitive scope (`documents`) and is unverified, a
+"Google hasn't verified this app" screen appears at first sign-in. Choose
+**Advanced → Go to … (unsafe)** to continue. That is expected for a personal
+app; verification is only needed to remove the warning for other people.
 
 ## Notes
 
