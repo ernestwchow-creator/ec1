@@ -456,6 +456,21 @@ main {
   font-style: italic;
 }
 
+.food-source {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.food-source a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.food-source a:hover {
+  text-decoration: underline;
+}
+
 .oxalate-bar {
   height: 4px;
   background: var(--border);
@@ -579,6 +594,29 @@ details summary {
   color: var(--text-secondary);
   display: block;
   margin-bottom: 8px;
+}
+
+.unit-selector {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.unit-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.unit-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 .weight-row {

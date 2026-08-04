@@ -192,13 +192,18 @@
 
       <div class="modal-weight">
         <label for="weight-input">Estimated weight</label>
+        <div class="unit-selector">
+          <button class="unit-btn active" data-unit="g">g</button>
+          <button class="unit-btn" data-unit="oz">oz</button>
+          <button class="unit-btn" data-unit="cups">cups</button>
+        </div>
         <div class="weight-row">
-          <button class="weight-adj" data-delta="-25">-25g</button>
+          <button class="weight-adj" data-delta="-25">-25</button>
           <button class="weight-adj" data-delta="-10">-10</button>
-          <input type="number" id="weight-input" min="5" max="2000" step="5">
+          <input type="number" id="weight-input" min="1" max="2000" step="5">
           <span class="weight-unit">g</span>
           <button class="weight-adj" data-delta="10">+10</button>
-          <button class="weight-adj" data-delta="25">+25g</button>
+          <button class="weight-adj" data-delta="25">+25</button>
         </div>
       </div>
 

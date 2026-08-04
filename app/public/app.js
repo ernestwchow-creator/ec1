@@ -298,6 +298,27 @@ function renderResults(data) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+const SOURCE_LINKS = {
+  vegetable: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  fruit: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  nut: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  grain: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  legume: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  meat: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  dairy: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  spice: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  beverage: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+  prepared: { label: "USDA FoodData Central", url: "https://fdc.nal.usda.gov/" },
+};
+const OHF_URL = "https://ohf.org/";
+const USYD_GI_URL = "https://glycemicindex.com/";
+
+function sourceHtml(food) {
+  if (!food.in_database) return "";
+  const src = SOURCE_LINKS[food.category] || SOURCE_LINKS.vegetable;
+  return `<div class="food-source">Sources: <a href="${OHF_URL}" target="_blank" rel="noopener">OHF</a> · <a href="${src.url}" target="_blank" rel="noopener">${esc(src.label)}</a>${food.glycemic_index ? ` · <a href="${USYD_GI_URL}" target="_blank" rel="noopener">GI Database</a>` : ""}</div>`;
+}
+
 function renderFoodList(foods) {
   const maxOx = Math.max(...foods.map((f) => f.estimated_oxalate_mg || 0), 1);
   const foodDetails = $("#food-details");
@@ -328,6 +349,7 @@ function renderFoodList(foods) {
       </div>
       ${f.net_carbs_g !== null ? `<div class="food-carbs">Net carbs: ${f.net_carbs_g}g · GI: ${f.glycemic_index}${f.glycemic_load !== null ? " · GL: " + f.glycemic_load : ""}</div>` : ""}
       ${f.note ? `<div class="food-note">${esc(f.note)}</div>` : ""}
+      ${sourceHtml(f)}
       ${!f.in_database && f.ai_estimated ? `<div class="food-ai-estimated">AI estimated — not in reference database</div>` : ""}
       ${!f.in_database && !f.ai_estimated ? `<div class="food-unknown">Not in database — estimates unavailable</div>` : ""}
       ${autoCorrected}
@@ -354,6 +376,51 @@ const weightInput = $("#weight-input");
 const saveWeightBtn = $("#modal-save-weight");
 
 let correctionIndex = -1;
+let currentUnit = "g";
+
+const OZ_PER_G = 1 / 28.3495;
+const G_PER_OZ = 28.3495;
+const CUP_WEIGHTS = {
+  vegetable: 130, fruit: 150, nut: 140, grain: 150, legume: 170,
+  meat: 140, dairy: 245, beverage: 240, spice: 7, prepared: 200, other: 150, unknown: 150,
+};
+
+function gramsToDisplay(g, unit, category) {
+  if (unit === "oz") return Math.round(g * OZ_PER_G * 10) / 10;
+  if (unit === "cups") return Math.round((g / (CUP_WEIGHTS[category] || 150)) * 100) / 100;
+  return Math.round(g);
+}
+
+function displayToGrams(val, unit, category) {
+  if (unit === "oz") return Math.round(val * G_PER_OZ);
+  if (unit === "cups") return Math.round(val * (CUP_WEIGHTS[category] || 150));
+  return Math.round(val);
+}
+
+function getWeightInGrams() {
+  if (correctionIndex < 0 || !currentResults) return parseInt(weightInput.value) || 100;
+  const food = currentResults.foods[correctionIndex];
+  return displayToGrams(parseFloat(weightInput.value) || 0, currentUnit, food.category);
+}
+
+function setUnitDisplay(unit, food) {
+  currentUnit = unit;
+  const unitLabel = $(".weight-unit");
+  unitLabel.textContent = unit;
+  document.querySelectorAll(".unit-btn").forEach((b) => b.classList.toggle("active", b.dataset.unit === unit));
+
+  const displayed = gramsToDisplay(food.weight_grams, unit, food.category);
+  weightInput.value = displayed;
+  weightInput.step = unit === "g" ? "5" : unit === "oz" ? "0.5" : "0.25";
+
+  const deltas = unit === "g" ? [[-25, "-25"], [-10, "-10"], [10, "+10"], [25, "+25"]]
+    : unit === "oz" ? [[-1, "-1"], [-0.5, "-0.5"], [0.5, "+0.5"], [1, "+1"]]
+    : [[-0.5, "-0.5"], [-0.25, "-¼"], [0.25, "+¼"], [0.5, "+0.5"]];
+  document.querySelectorAll(".weight-adj").forEach((btn, i) => {
+    btn.dataset.delta = deltas[i][0];
+    btn.textContent = deltas[i][1];
+  });
+}
 
 function openCorrectionModal(index) {
   if (!currentResults) return;
@@ -366,7 +433,7 @@ function openCorrectionModal(index) {
     modalPrompt.textContent = `Identified as "${food.name}" (~${food.weight_grams}g)`;
   }
 
-  weightInput.value = food.weight_grams;
+  setUnitDisplay("g", food);
 
   const alts = food.alternatives || [];
   const allOptions = [food.name, ...alts];
@@ -378,7 +445,7 @@ function openCorrectionModal(index) {
     </button>`).join("");
 
   modalAlts.querySelectorAll(".alt-btn").forEach((btn) => {
-    btn.addEventListener("click", () => applyCorrection(btn.dataset.name, parseInt(weightInput.value)));
+    btn.addEventListener("click", () => applyCorrection(btn.dataset.name, getWeightInGrams()));
   });
 
   rememberCheck.checked = true;
@@ -441,28 +508,41 @@ async function applyCorrection(newName, newWeight) {
 document.querySelectorAll(".weight-adj").forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    const delta = parseInt(btn.dataset.delta);
-    const cur = parseInt(weightInput.value) || 100;
-    weightInput.value = Math.max(5, cur + delta);
+    const delta = parseFloat(btn.dataset.delta);
+    const cur = parseFloat(weightInput.value) || 0;
+    const min = currentUnit === "g" ? 5 : currentUnit === "oz" ? 0.5 : 0.25;
+    weightInput.value = Math.max(min, Math.round((cur + delta) * 100) / 100);
+  });
+});
+
+// Unit selector buttons
+document.querySelectorAll(".unit-btn").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (correctionIndex < 0 || !currentResults) return;
+    const food = currentResults.foods[correctionIndex];
+    const currentGrams = getWeightInGrams();
+    food.weight_grams = currentGrams;
+    setUnitDisplay(btn.dataset.unit, food);
   });
 });
 
 saveWeightBtn.addEventListener("click", () => {
   if (correctionIndex < 0 || !currentResults) return;
   const food = currentResults.foods[correctionIndex];
-  applyCorrection(food.name, parseInt(weightInput.value));
+  applyCorrection(food.name, getWeightInGrams());
 });
 
 modalBackdrop.addEventListener("click", closeModal);
 cancelBtn.addEventListener("click", closeModal);
 customBtn.addEventListener("click", () => {
   const val = customInput.value.trim();
-  if (val) applyCorrection(val, parseInt(weightInput.value));
+  if (val) applyCorrection(val, getWeightInGrams());
 });
 customInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     const val = customInput.value.trim();
-    if (val) applyCorrection(val, parseInt(weightInput.value));
+    if (val) applyCorrection(val, getWeightInGrams());
   }
 });
 
