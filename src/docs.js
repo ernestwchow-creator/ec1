@@ -69,20 +69,24 @@ async function appendTransposedChart(auth, documentId, chartData, title) {
   let doc = await docs.documents.get({ documentId });
   let endIndex = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
 
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: {
-      requests: [{
-        insertText: {
-          location: { index: endIndex - 1 },
-          text: '\n' + title + '\n'
-        }
-      }]
-    }
-  });
+  // Title is only written ahead of a chart's first fragment; later fragments
+  // of a split chart pass null and stack straight under the previous table.
+  if (title) {
+    await docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [{
+          insertText: {
+            location: { index: endIndex - 1 },
+            text: '\n' + title + '\n'
+          }
+        }]
+      }
+    });
 
-  doc = await docs.documents.get({ documentId });
-  endIndex = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
+    doc = await docs.documents.get({ documentId });
+    endIndex = doc.data.body.content[doc.data.body.content.length - 1].endIndex;
+  }
 
   const rows = chartData.length;
   const columns = Math.max(...chartData.map(r => r.length));
@@ -178,12 +182,15 @@ function tableToData(table) {
 
 // Rewrites a chart in place, used on a freshly copied document so the copy
 // reads as a chart in the new key rather than the original plus an appendix.
+// A chart may span several tables (partIndices, ascending positions among the
+// matching chord tables), each with its own replacement data.
 //
 // Two constraints drive the shape of this: a cell's trailing newline ends its
 // paragraph and deleting it would collapse the table, and every edit shifts the
 // indices of everything after it. So each cell is trimmed to its text only, and
-// the whole document is walked back to front.
-async function replaceChart(auth, documentId, isTargetTable, chartIndex, newData) {
+// tables are processed last-first, cells back to front, keeping every request's
+// indices valid against the one document fetch.
+async function replaceChart(auth, documentId, isTargetTable, partIndices, newDataParts) {
   const docs = google.docs({ version: 'v1', auth });
   const doc = (await docs.documents.get({ documentId })).data;
 
@@ -192,14 +199,25 @@ async function replaceChart(auth, documentId, isTargetTable, chartIndex, newData
     .map(el => el.table)
     .filter(table => isTargetTable(tableToData(table)));
 
-  const table = matches[chartIndex];
-  if (!table) {
-    const err = new Error('Chord chart not found in the copied document');
-    err.code = 404;
-    throw err;
+  const requests = [];
+
+  for (let p = partIndices.length - 1; p >= 0; p--) {
+    const table = matches[partIndices[p]];
+    if (!table) {
+      const err = new Error('Chord chart not found in the copied document');
+      err.code = 404;
+      throw err;
+    }
+    collectTableRewrite(table, newDataParts[p], requests);
   }
 
-  const requests = [];
+  if (requests.length) {
+    await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
+  }
+  return requests.length;
+}
+
+function collectTableRewrite(table, newData, requests) {
   const rows = table.tableRows || [];
 
   for (let r = rows.length - 1; r >= 0; r--) {
@@ -240,11 +258,6 @@ async function replaceChart(auth, documentId, isTargetTable, chartIndex, newData
       }
     }
   }
-
-  if (requests.length) {
-    await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
-  }
-  return requests.length;
 }
 
 module.exports = {

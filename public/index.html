@@ -175,6 +175,24 @@
     .mode-option small { display: block; color: #777; font-size: 0.82rem; margin-top: 0.2rem; line-height: 1.45; }
     .mode-option.disabled { opacity: 0.55; }
 
+    .paste-note { font-size: 0.85rem; color: #777; margin-bottom: 0.7rem; line-height: 1.5; }
+
+    #paste-input {
+      width: 100%;
+      min-height: 8rem;
+      padding: 0.7rem 1rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      outline: none;
+      resize: vertical;
+      margin-bottom: 0.7rem;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    #paste-input:focus { border-color: #6c5ce7; }
+
     .doc-title {
       font-size: 1.2rem;
       font-weight: 600;
@@ -238,8 +256,10 @@
     .chord-table tr:first-child td { border-top: 1px solid #e0e0e0; }
     .chord-table td:first-child { border-left: 1px solid #e0e0e0; }
 
-    /* Pin the section label so it stays visible while chords scroll sideways. */
-    .chord-table td:first-child {
+    /* Pin the section label so it stays visible while chords scroll sideways.
+       Applied only when the first column really is labels — in charts without
+       a label column the first cells are chords like any other. */
+    .chord-table.labeled td:first-child {
       background: #f8f8fc;
       font-weight: 600;
       color: #555;
@@ -471,6 +491,18 @@
         <div id="load-error"></div>
       </div>
 
+      </div>
+
+    <div class="card">
+      <h2>Or paste a chart</h2>
+      <p class="paste-note">Copy a chord table from any document or spreadsheet and paste it here
+        &mdash; no Google account needed. Blank lines separate the parts of a split chart.</p>
+      <textarea id="paste-input" rows="6"
+        placeholder="Am7&#9;Dm7&#9;G7&#9;C&#8710;&#10;F&#9;B&#248;&#9;E7&#9;Am"></textarea>
+      <button class="btn full" id="paste-btn" onclick="loadPastedChart()">Use this chart</button>
+      <div id="paste-error"></div>
+    </div>
+
       <div id="chart-area" class="hidden">
         <div class="card">
           <div class="doc-title" id="doc-title"></div>
@@ -497,12 +529,12 @@
           <div class="compare" id="compare">
             <div>
               <div class="section-label">Original</div>
-              <div class="chart-table-wrapper" id="original-chart"></div>
+              <div id="original-chart"></div>
             </div>
 
             <div id="transposed-section" class="transposed-section hidden">
               <div class="section-label">Transposed</div>
-              <div class="chart-table-wrapper" id="transposed-chart"></div>
+              <div id="transposed-chart"></div>
             </div>
           </div>
 
@@ -529,60 +561,19 @@
             </button>
           </div>
 
+          <div id="paste-actions" class="hidden">
+            <button class="btn success full" id="copy-btn" onclick="copyTransposed()">
+              Copy transposed chart
+            </button>
+          </div>
+
           <div id="result-message"></div>
         </div>
       </div>
-    </div>
   </main>
 
+  <script src="/transpose.js"></script>
   <script>
-    const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-    const NOTES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-    // Keys conventionally written with flats: Db, Eb, F, Ab, Bb. F#/Gb is
-    // ambiguous and falls to the sharp side.
-    const FLAT_PITCH_CLASSES = new Set([1, 3, 5, 8, 10]);
-
-    function preferFlatsForKeyShift(originalKey, semitones) {
-      const idx = noteToIndex(originalKey);
-      if (idx === -1) return false;
-      return FLAT_PITCH_CLASSES.has(((idx + semitones) % 12 + 12) % 12);
-    }
-
-    function noteToIndex(note) {
-      const n = note.replace('♯','#').replace('♭','b');
-      let i = NOTES_SHARP.indexOf(n);
-      if (i === -1) i = NOTES_FLAT.indexOf(n);
-      return i;
-    }
-
-    function transposeNote(note, semi, useFlats) {
-      const idx = noteToIndex(note);
-      if (idx === -1) return note;
-      const ni = ((idx + semi) % 12 + 12) % 12;
-      return useFlats ? NOTES_FLAT[ni] : NOTES_SHARP[ni];
-    }
-
-    function transposeToken(token, semi, useFlats) {
-      const m = token.match(/^([^A-G]*)([A-G])([#b♯♭]?)(.*)/);
-      if (!m) return token;
-      const [, prefix, letter, acc, rest] = m;
-      const root = letter + acc;
-      const tr = transposeNote(root, semi, useFlats);
-      const bm = rest.match(/^(.*)\/([A-G])([#b♯♭]?)$/);
-      if (bm) {
-        const [, q, bl, ba] = bm;
-        return prefix + tr + q + '/' + transposeNote(bl + ba, semi, useFlats);
-      }
-      return prefix + tr + rest;
-    }
-
-    function transposeCellText(text, semi, useFlats) {
-      if (!text || !text.trim()) return text;
-      return text.split(/(\s+)/).map(p =>
-        /^\s*$/.test(p) ? p : transposeToken(p, semi, useFlats)
-      ).join('');
-    }
-
     let state = {
       doc: null,
       selectedChart: 0,
@@ -590,14 +581,18 @@
       useFlats: false,
       // Once the spelling is chosen by hand it stops following the target key.
       accidentalChosen: false,
+      authenticated: false,
       canBrowse: false,
       canCopy: false,
-      scopes: null
+      scopes: null,
+      // The transposed parts currently on screen, kept for the copy button.
+      lastTransposedParts: null
     };
 
     async function checkAuth() {
       const res = await fetch('/api/me');
       const { authenticated, canBrowse, canCopy, scopes } = await res.json();
+      state.authenticated = !!authenticated;
       state.canBrowse = !!canBrowse;
       state.canCopy = !!canCopy;
       state.scopes = scopes;
@@ -612,6 +607,8 @@
         document.getElementById('login-section').classList.remove('hidden');
         document.getElementById('app-section').classList.add('hidden');
       }
+      // Signing in or out changes which actions the loaded chart offers.
+      if (state.doc) updatePreview();
     }
 
     // Older sign-ins predate the Drive scopes, so the features that need them
@@ -785,6 +782,72 @@
       }
     }
 
+    // ---- Pasted charts: parsed and transposed entirely in the browser. ----
+    function loadPastedChart() {
+      const errDiv = document.getElementById('paste-error');
+      errDiv.innerHTML = '';
+      const text = document.getElementById('paste-input').value;
+      if (!text.trim()) return;
+
+      const rawParts = parsePastedChart(text);
+      // Prefer the parts that look like chord tables; if none qualify, trust
+      // the paste as-is — the user knows it is a chart even if detection
+      // does not.
+      const chordParts = rawParts.filter(d => isChordTable(d) && !isRomanNumeralTable(d));
+      const chosen = chordParts.length ? chordParts : rawParts;
+
+      if (!chosen.length) {
+        errDiv.innerHTML = '<div class="message error">Could not find a table in the pasted text. ' +
+          'Paste rows of chords separated by tabs, pipes, or two or more spaces.</div>';
+        return;
+      }
+
+      state.doc = {
+        title: 'Pasted chart',
+        documentId: null,
+        pasted: true,
+        chordCharts: [{
+          index: 0,
+          detectedKey: detectKeyFromChart(chosen[0]),
+          parts: chosen.map(data => ({ data, hasLabelColumn: detectLabelColumn(data) }))
+        }]
+      };
+      state.selectedChart = 0;
+      state.semitones = 0;
+      state.accidentalChosen = false;
+      displayDocument();
+      document.getElementById('chart-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function copyTransposed() {
+      if (!state.lastTransposedParts) return;
+      const msgDiv = document.getElementById('result-message');
+      // Tab-separated so it pastes back into a spreadsheet, or a Docs table,
+      // as cells; blank lines keep split-chart parts apart.
+      const tsv = state.lastTransposedParts
+        .map(part => part.map(row => row.join('\t')).join('\n'))
+        .join('\n\n');
+
+      try {
+        await navigator.clipboard.writeText(tsv);
+        msgDiv.innerHTML = '<div class="message success">Copied. Paste it into a spreadsheet, ' +
+          'or into a document as text.</div>';
+      } catch (e) {
+        // Clipboard access can be refused (http, permissions): fall back to
+        // a selected textarea the user can copy by hand.
+        const ta = document.createElement('textarea');
+        ta.value = tsv;
+        document.body.appendChild(ta);
+        ta.select();
+        let copied = false;
+        try { copied = document.execCommand('copy'); } catch (e2) { /* leave selected */ }
+        document.body.removeChild(ta);
+        msgDiv.innerHTML = copied
+          ? '<div class="message success">Copied. Paste it into a spreadsheet, or into a document as text.</div>'
+          : '<div class="message error">Could not reach the clipboard. Select the transposed table and copy it manually.</div>';
+      }
+    }
+
     function displayDocument() {
       document.getElementById('chart-area').classList.remove('hidden');
       document.getElementById('doc-title').textContent = state.doc.title;
@@ -796,7 +859,9 @@
         selector.innerHTML = state.doc.chordCharts.map((chart, i) =>
           '<button class="chart-tab' + (i === state.selectedChart ? ' active' : '') +
           '" onclick="selectChart(' + i + ')">Chart ' + (i + 1) +
-          ' (Key of ' + escapeHtml(chart.detectedKey) + ')</button>'
+          ' (Key of ' + escapeHtml(chart.detectedKey) + ')' +
+          (chart.parts.length > 1 ? ' &middot; ' + chart.parts.length + ' parts' : '') +
+          '</button>'
         ).join('');
       } else {
         selector.classList.add('hidden');
@@ -815,11 +880,21 @@
 
     function renderOriginal() {
       const chart = state.doc.chordCharts[state.selectedChart];
-      document.getElementById('original-chart').innerHTML = renderTable(chart.data, false);
+      document.getElementById('original-chart').innerHTML = renderParts(chart.parts, false);
     }
 
-    function renderTable(data, isTransposed) {
-      let html = '<table class="chord-table' + (isTransposed ? ' transposed' : '') + '">';
+    // A chart may be split across several tables; render them stacked.
+    // parts: [{ data, hasLabelColumn }]
+    function renderParts(parts, isTransposed) {
+      return parts.map(p =>
+        '<div class="chart-table-wrapper">' +
+        renderTable(p.data, isTransposed, p.hasLabelColumn) + '</div>'
+      ).join('');
+    }
+
+    function renderTable(data, isTransposed, labeled) {
+      let html = '<table class="chord-table' + (isTransposed ? ' transposed' : '') +
+        (labeled ? ' labeled' : '') + '">';
       for (const row of data) {
         html += '<tr>';
         for (const cell of row) {
@@ -878,23 +953,39 @@
     function updatePreview() {
       const section = document.getElementById('transposed-section');
       const addSection = document.getElementById('add-section');
+      const pasteActions = document.getElementById('paste-actions');
       const compare = document.getElementById('compare');
+      const pasted = !!(state.doc && state.doc.pasted);
+
       if (state.semitones === 0) {
         section.classList.add('hidden');
         addSection.classList.add('hidden');
+        pasteActions.classList.add('hidden');
         compare.classList.remove('has-transposed');
+        state.lastTransposedParts = null;
         return;
       }
       section.classList.remove('hidden');
-      addSection.classList.remove('hidden');
       compare.classList.add('has-transposed');
+      // A pasted chart has no Google Doc to write back to — it gets a copy
+      // button instead, and works without being signed in at all.
+      addSection.classList.toggle('hidden', pasted || !state.authenticated);
+      pasteActions.classList.toggle('hidden', !pasted);
 
       const chart = state.doc.chordCharts[state.selectedChart];
-      const transposed = chart.data.map((row) =>
-        row.map((cell, c) => c === 0 ? cell : transposeCellText(cell, state.semitones, state.useFlats))
+      const transposedParts = chart.parts.map(part =>
+        part.data.map(row =>
+          row.map((cell, c) =>
+            (part.hasLabelColumn && c === 0)
+              ? cell
+              : transposeCellText(cell, state.semitones, state.useFlats))
+        )
       );
+      state.lastTransposedParts = transposedParts;
 
-      document.getElementById('transposed-chart').innerHTML = renderTable(transposed, true);
+      document.getElementById('transposed-chart').innerHTML = renderParts(
+        transposedParts.map((data, i) => ({ data, hasLabelColumn: chart.parts[i].hasLabelColumn })),
+        true);
       updateKeyDisplay();
     }
 

@@ -1,9 +1,10 @@
 // Caches the app shell so the UI opens instantly and survives a flaky connection.
 // API calls and OAuth are always network-only — they must never be served stale.
-const CACHE = 'chord-transposer-v3';
+const CACHE = 'chord-transposer-v4';
 const SHELL = [
   '/',
   '/manifest.json',
+  '/transpose.js',
   '/icons/icon-192.png',
   '/icons/apple-touch-icon.png'
 ];

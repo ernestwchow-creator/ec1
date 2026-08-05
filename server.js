@@ -9,7 +9,7 @@ const {
 } = require('./src/docs');
 const {
   isChordTable, isRomanNumeralTable, transposeCellText,
-  detectKeyFromChart, transposeNote
+  buildChartGroups, transposeNote
 } = require('./src/transpose');
 const { readTokens, writeTokens, clearTokens } = require('./src/session');
 
@@ -30,6 +30,11 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+// The transposition/detection module is shared verbatim with the browser so
+// the live preview and the server never disagree on what a chord chart is.
+app.get('/transpose.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'transpose.js'));
+});
 
 const REDIRECT_URI = `${BASE_URL}/auth/callback`;
 
@@ -368,15 +373,15 @@ app.get('/api/document', async (req, res) => {
     const doc = await readDocument(auth, docId);
     const tables = extractTables(doc);
 
-    const chordCharts = tables
+    const chordDatas = tables
       .filter(t => isChordTable(t.data) && !isRomanNumeralTable(t.data))
-      .map((t, i) => ({
-        index: i,
-        data: t.data,
-        rows: t.rows,
-        columns: t.columns,
-        detectedKey: detectKeyFromChart(t.data)
-      }));
+      .map(t => t.data);
+
+    const chordCharts = buildChartGroups(chordDatas).map((g, i) => ({
+      index: i,
+      detectedKey: g.detectedKey,
+      parts: g.parts.map(p => ({ data: p.data, hasLabelColumn: p.hasLabelColumn }))
+    }));
 
     res.json({
       title: doc.title,
@@ -416,20 +421,24 @@ app.post('/api/transpose', async (req, res) => {
     const doc = await readDocument(auth, documentId);
     const tables = extractTables(doc);
     const isChart = (data) => isChordTable(data) && !isRomanNumeralTable(data);
-    const chordCharts = tables.filter(t => isChart(t.data));
+    const groups = buildChartGroups(tables.map(t => t.data).filter(isChart));
 
     const index = chartIndex || 0;
-    const chart = chordCharts[index];
+    const chart = groups[index];
     if (!chart) return res.status(404).json({ error: 'Chord chart not found in document' });
 
-    const transposed = chart.data.map((row) =>
-      row.map((cell, c) => {
-        if (c === 0) return cell;
-        return transposeCellText(cell, semitones, useFlats);
-      })
+    // Column 0 is skipped only when it holds section labels; in charts without
+    // a label column the first column is the first bar of each line.
+    const transposedParts = chart.parts.map(part =>
+      part.data.map(row =>
+        row.map((cell, c) => {
+          if (part.hasLabelColumn && c === 0) return cell;
+          return transposeCellText(cell, semitones, useFlats);
+        })
+      )
     );
 
-    const originalKey = detectKeyFromChart(chart.data);
+    const originalKey = chart.detectedKey;
     const newKey = transposeNote(originalKey, semitones, useFlats);
     const direction = semitones > 0 ? '+' : '';
     const title = `Transposed to ${newKey} (${direction}${semitones} semitones from ${originalKey})`;
@@ -441,7 +450,8 @@ app.post('/api/transpose', async (req, res) => {
       const newName = `${baseName} (${newKey})`;
 
       const copy = await copyDocument(auth, documentId, newName);
-      await replaceChart(auth, copy.id, isChart, index, transposed);
+      await replaceChart(auth, copy.id, isChart,
+        chart.parts.map(p => p.chordTableIndex), transposedParts);
 
       return res.json({
         success: true,
@@ -449,11 +459,13 @@ app.post('/api/transpose', async (req, res) => {
         title: newName,
         documentId: copy.id,
         url: copy.webViewLink || `https://docs.google.com/document/d/${copy.id}`,
-        transposedChart: transposed
+        transposedParts
       });
     }
 
-    await appendTransposedChart(auth, documentId, transposed, title);
+    for (let i = 0; i < transposedParts.length; i++) {
+      await appendTransposedChart(auth, documentId, transposedParts[i], i === 0 ? title : null);
+    }
 
     res.json({
       success: true,
@@ -461,7 +473,7 @@ app.post('/api/transpose', async (req, res) => {
       title,
       documentId,
       url: `https://docs.google.com/document/d/${documentId}`,
-      transposedChart: transposed
+      transposedParts
     });
   } catch (err) {
     console.error('Transpose error:', err.message);

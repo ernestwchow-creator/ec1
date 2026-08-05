@@ -58,7 +58,7 @@ async function run(before, after) {
     }
   });
   try {
-    await replaceChart({}, 'doc-id', () => true, 0, after);
+    await replaceChart({}, 'doc-id', () => true, [0], [after]);
   } finally {
     google.docs = original;
   }
@@ -144,14 +144,61 @@ async function run(before, after) {
       }
     });
     try {
-      // chartIndex 1 -> the second table
-      await replaceChart({}, 'doc-id', () => true, 1, [['X1', 'X2']]);
+      // part index 1 -> the second table only
+      await replaceChart({}, 'doc-id', () => true, [1], [[['X1', 'X2']]]);
     } finally {
       google.docs = original;
     }
 
     assert.strictEqual(applyRequests(buffer, captured), 'A1\nA2\nX1\nX2\n');
     console.log('PASS  edits only the selected chart, leaving others intact');
+  }
+
+  // 8. A split chart: both fragments rewritten in one pass, indices intact.
+  {
+    let buffer = '';
+    let index = 1;
+    const makeTable = (cells) => ({
+      table: {
+        tableRows: cells.map(row => ({
+          tableCells: row.map(text => {
+            const content = text + '\n';
+            const startIndex = index;
+            const endIndex = index + content.length;
+            buffer += content;
+            index = endIndex;
+            return {
+              content: [{
+                startIndex, endIndex,
+                paragraph: { elements: [{ startIndex, endIndex, textRun: { content } }] }
+              }]
+            };
+          })
+        }))
+      }
+    });
+    const doc = { body: { content: [
+      makeTable([['C6', 'Ebº7']]),          // intro fragment
+      makeTable([['C∆ | C6', 'F7']])        // body fragment
+    ] } };
+
+    let captured = [];
+    const original = google.docs;
+    google.docs = () => ({
+      documents: {
+        get: async () => ({ data: doc }),
+        batchUpdate: async ({ requestBody }) => { captured = requestBody.requests; return {}; }
+      }
+    });
+    try {
+      await replaceChart({}, 'doc-id', () => true, [0, 1],
+        [[['D6', 'Fº7']], [['D∆ | D6', 'G7']]]);
+    } finally {
+      google.docs = original;
+    }
+
+    assert.strictEqual(applyRequests(buffer, captured), 'D6\nFº7\nD∆ | D6\nG7\n');
+    console.log('PASS  split chart: both fragments rewritten in one batch');
   }
 
   console.log('\nAll replaceChart tests passed.');

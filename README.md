@@ -8,6 +8,15 @@ new copy in the new key.
 Runs in any browser and installs to the iPhone/iPad home screen as a
 full-screen app.
 
+## No Google Doc? Paste the chart
+
+The **Or paste a chart** box takes a chord table pasted as plain text — from a
+spreadsheet, another document, or anywhere else. Tabs, pipes, or runs of two or
+more spaces separate the cells; blank lines separate the parts of a split
+chart. Transposition runs entirely in the browser, no sign-in required, and the
+result copies back to the clipboard as tab-separated cells that paste cleanly
+into a spreadsheet or table.
+
 ## Two ways to save
 
 - **Add to this document** — appends the transposed chart as a new table at the
@@ -21,9 +30,19 @@ full-screen app.
 
 - Basic chords (`C`, `Am`), 7ths (`E7`), extended (`Am9`, `C13`)
 - Altered and jazz voicings (`BbΔ`, `Gø`, `Aaug`, `Gdim`, `F6/9`)
-- Slash chords (`E7/G#`, `Gm7/D`) — root and bass note both move
-- Repeat signs (`||:`, `:||`), repeat counts (`x3`), and section labels are
-  preserved as-is
+- Jazz shorthand: `-` minors (`A-7`), `∆` majors (`C∆`), `º` diminished
+  (`Ebº7`), `+` augmented (`G+`)
+- Slash chords (`E7/G#`, `Gm7/D`, `A-7/C`) — root and bass note both move
+- Bar splits inside a cell, spaced or not: `C | G+` and `Bb7|A7` both work
+- Repeat signs (`||:`, `:||`), repeat counts (`x3`), voltas (`1:`, `2:`) and
+  section labels are preserved as-is; `N.C.` (no chord) is never transposed
+- Charts with a section-label first column (`[Verse]`, or bare `A`/`B`/`C`
+  form letters) and charts whose first column is simply the first bar — the
+  label column is detected per table and left untouched
+- One chart split across several tables (intro / body / outro fragments):
+  consecutive tables in the same key are treated as one chart and transposed
+  together, while tables in different keys (an original plus already-transposed
+  copies) stay separate
 - A sharps/flats toggle, which starts on whichever the destination key is
   conventionally written in — transposing to Eb gives `Eb Cm`, not `D# B#m` —
   and stays put once set by hand
@@ -205,10 +224,10 @@ native app.
 | Path | Purpose |
 | --- | --- |
 | `server.js` | Express server, Google OAuth, API routes |
-| `src/transpose.js` | Chord parsing, transposition, chart detection |
+| `src/transpose.js` | Chord parsing, transposition, chart detection — served to the browser as `/transpose.js` so preview and server share one implementation |
 | `src/docs.js` | Google Docs and Drive: read, append, copy, rewrite in place |
 | `src/session.js` | Encrypted cookie session |
-| `test-session.js`, `test-replace.js` | Tests (`npm test`) |
+| `test-session.js`, `test-replace.js`, `test-charts.js` | Tests (`npm test`) |
 | `public/index.html` | Front end with live transposition preview |
 | `public/manifest.json` | PWA manifest (home-screen install) |
 | `public/sw.js` | Service worker caching the app shell |
