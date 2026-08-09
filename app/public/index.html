@@ -190,6 +190,30 @@
         <div id="absorption-banner" class="absorption-banner"></div>
       </div>
 
+      <!-- Total weight & scaling -->
+      <div id="total-weight-bar" class="total-weight-bar">
+        <div class="total-weight-label">Total estimated weight</div>
+        <div class="total-weight-controls">
+          <button class="weight-adj" id="total-down-50" data-delta="-50">-50</button>
+          <button class="weight-adj" id="total-down-25" data-delta="-25">-25</button>
+          <input type="number" id="total-weight-input" min="50" max="3000" step="25">
+          <span class="weight-unit">g</span>
+          <button class="weight-adj" id="total-up-25" data-delta="25">+25</button>
+          <button class="weight-adj" id="total-up-50" data-delta="50">+50</button>
+          <button id="apply-total-weight" class="primary-btn total-weight-apply">Scale</button>
+        </div>
+        <p class="total-weight-hint">Adjust if the total looks wrong — all foods scale proportionally</p>
+      </div>
+
+      <!-- Feedback recalibration -->
+      <div class="feedback-bar">
+        <div class="feedback-row">
+          <input type="text" id="feedback-input" placeholder="e.g. &quot;portions are smaller&quot; or &quot;this is a child's plate&quot;">
+          <button id="send-feedback-btn" class="primary-btn feedback-send">Re-analyze</button>
+        </div>
+        <p id="feedback-status" class="feedback-status hidden"></p>
+      </div>
+
       <!-- Food details -->
       <h3 class="section-title">Food Breakdown</h3>
       <p class="section-hint">Tap a food to correct misidentifications</p>

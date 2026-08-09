@@ -415,6 +415,9 @@ function renderResults(data) {
     absBanner.className = "absorption-banner " + (absStyles[fpu.absorption_profile] || "risk-low");
   }
 
+  const totalWeight = data.foods.reduce((s, f) => s + f.weight_grams, 0);
+  $("#total-weight-input").value = Math.round(totalWeight);
+
   renderFoodList(data.foods);
   $("#add-food-btn").classList.remove("hidden");
   applySectionVisibility();
@@ -965,6 +968,90 @@ if (clearMemBtn) {
     showToast("Food memory cleared");
   });
 }
+
+// -- Total Weight Scaling --
+const totalWeightInput = $("#total-weight-input");
+
+document.querySelectorAll(".total-weight-controls .weight-adj").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const delta = parseFloat(btn.dataset.delta);
+    const cur = parseFloat(totalWeightInput.value) || 0;
+    totalWeightInput.value = Math.max(50, Math.round(cur + delta));
+  });
+});
+
+$("#apply-total-weight").addEventListener("click", async () => {
+  if (!currentResults) return;
+  const currentTotal = currentResults.foods.reduce((s, f) => s + f.weight_grams, 0);
+  const newTotal = parseFloat(totalWeightInput.value) || currentTotal;
+  if (newTotal === currentTotal) return;
+
+  const ratio = newTotal / currentTotal;
+  const scaled = currentResults.foods.map(f => ({
+    ...f,
+    weight_grams: Math.max(1, Math.round(f.weight_grams * ratio)),
+  }));
+
+  try {
+    const data = await recalculateFromFoods(scaled);
+    currentResults.foods = data.foods;
+    currentResults.total_oxalate_mg = data.total_oxalate_mg;
+    currentResults.risk_level = data.risk_level;
+    currentResults.calcium_recommendation = data.calcium_recommendation;
+    currentResults.carb_summary = data.carb_summary;
+    currentResults.fpu_summary = data.fpu_summary;
+    currentResults.meal_description = data.foods.map(f => f.name).join(", ");
+    renderResults(currentResults);
+    showToast(`Scaled to ${newTotal}g (${Math.round(ratio * 100)}%)`);
+  } catch (err) {
+    showError("Scaling failed: " + err.message);
+  }
+});
+
+// -- Feedback Recalibration --
+$("#send-feedback-btn").addEventListener("click", async () => {
+  const input = $("#feedback-input");
+  const hint = input.value.trim();
+  if (!hint || !currentResults || !capturedImage) return;
+
+  const statusEl = $("#feedback-status");
+  statusEl.textContent = "Re-analyzing with your feedback...";
+  statusEl.classList.remove("hidden");
+  input.disabled = true;
+  $("#send-feedback-btn").disabled = true;
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: capturedImage,
+        tablet_size_mg: getTabletSize(),
+        feedback: hint,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const { foods: correctedFoods, changed } = applyMemoryToResults(data.foods);
+    if (changed) {
+      const recalc = await recalculateFromFoods(correctedFoods);
+      currentResults = { ...data, ...recalc };
+      currentResults.meal_description = data.meal_description;
+    } else {
+      currentResults = data;
+    }
+    renderResults(currentResults);
+    showToast("Re-analyzed with your feedback");
+  } catch (err) {
+    showError("Feedback re-analysis failed: " + err.message);
+  } finally {
+    input.disabled = false;
+    input.value = "";
+    $("#send-feedback-btn").disabled = false;
+    statusEl.classList.add("hidden");
+  }
+});
 
 // -- Add Missing Food --
 $("#add-food-btn").addEventListener("click", openAddFoodModal);

@@ -244,12 +244,14 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
+    const feedback = req.body.feedback ? `\n\nUSER FEEDBACK on this specific photo: "${req.body.feedback}"\nTake this feedback into account when identifying foods and estimating portion sizes. The user has seen this meal in person and is correcting the AI's initial estimate.` : "";
+
     const apiMessages = [
       {
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: imageData } },
-          { type: "text", text: FOOD_IDENTIFICATION_PROMPT },
+          { type: "text", text: FOOD_IDENTIFICATION_PROMPT + feedback },
         ],
       },
     ];
