@@ -170,16 +170,23 @@ These estimates are used as a fallback when the food is not in our reference dat
 WEIGHT ESTIMATION — This is critical. You MUST estimate weight from what you SEE in the photo, not from generic defaults:
 1. LOOK AT THE ACTUAL PORTION in the photo. Judge its physical volume, thickness, and spread.
 2. Use objects in the frame for scale: plates (~25-27cm / 10-11in diameter), bowls, forks (~19cm), knives (~22cm), spoons, hands, cups, napkins. Compare the food's size against these.
-3. Estimate the 3D volume — how thick/deep is the food? A thin smear of sauce is 10-15g; a thick mound of rice filling half a plate could be 200g+.
-4. Consider density: rice and grains are dense (~1g/ml packed), leafy greens are very light (a huge pile of lettuce may be only 40-60g), liquids ~1g/ml, bread is airy (~0.3g/ml), meat is dense (~1.1g/ml).
-5. ONLY THEN sanity-check against these reference portions — do NOT default to these if the photo shows a clearly different amount:
+3. If no tableware or objects are visible, use the FOOD ITSELF for scale. Many foods have a known physical size:
+   - Peas: ~8mm diameter, ~0.4g each. Chickpeas: ~12mm, ~1.5g each. Corn kernels: ~10mm, ~0.5g each.
+   - Almonds: ~2cm long, ~1.2g each. Cashews: ~2.5cm, ~1.5g each. Walnuts (half): ~3cm, ~2.5g each.
+   - Penne/rigatoni: ~4cm long. Spaghetti strand: ~2mm wide. A grain of rice: ~6mm long.
+   - Cherry tomato: ~3cm, ~15g. Grape: ~2cm, ~5g. Strawberry: ~3-4cm, ~12g. Blueberry: ~1cm, ~1.5g.
+   - Olive: ~2cm, ~4g. A single shrimp (medium): ~8cm, ~10g.
+   Count or estimate the number of visible pieces, multiply by per-piece weight, and use that to gauge the total and the size of other foods nearby.
+4. Estimate the 3D volume — how thick/deep is the food? A thin smear of sauce is 10-15g; a thick mound of rice filling half a plate could be 200g+.
+5. Consider density: rice and grains are dense (~1g/ml packed), leafy greens are very light (a huge pile of lettuce may be only 40-60g), liquids ~1g/ml, bread is airy (~0.3g/ml), meat is dense (~1.1g/ml).
+6. ONLY THEN sanity-check against these reference portions — do NOT default to these if the photo shows a clearly different amount:
    - Chicken breast: 120-170g. Egg: ~50g. Slice of bread: ~30g.
    - Cup of rice: ~185g. Medium potato: ~150g. Tablespoon of sauce: ~15g.
    - Side salad greens: 50-80g. Handful of nuts: ~30g.
    - Glass of liquid: ~240ml. Small cup: ~150ml. Mug: ~350ml.
-6. If the portion in the photo is clearly SMALLER or LARGER than a standard serving, adjust accordingly. A few bites of rice left on a plate is 30-50g, not 185g.
-7. Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein. Weight by visible container size.
-8. TOTAL WEIGHT REALITY CHECK — After estimating each food, add up all the weights and ask: does this total make sense for what I see in the photo?
+7. If the portion in the photo is clearly SMALLER or LARGER than a standard serving, adjust accordingly. A few bites of rice left on a plate is 30-50g, not 185g.
+8. Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein. Weight by visible container size.
+9. TOTAL WEIGHT REALITY CHECK — After estimating each food, add up all the weights and ask: does this total make sense for what I see in the photo?
    - A snack plate or side dish: typically 100-300g total.
    - A typical home-cooked main meal on a plate: 300-600g total.
    - A large restaurant meal or full bowl of soup/stew: 400-800g total.
