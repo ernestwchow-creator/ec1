@@ -179,6 +179,13 @@ WEIGHT ESTIMATION — This is critical. You MUST estimate weight from what you S
    - Glass of liquid: ~240ml. Small cup: ~150ml. Mug: ~350ml.
 6. If the portion in the photo is clearly SMALLER or LARGER than a standard serving, adjust accordingly. A few bites of rice left on a plate is 30-50g, not 185g.
 7. Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein. Weight by visible container size.
+8. TOTAL WEIGHT REALITY CHECK — After estimating each food, add up all the weights and ask: does this total make sense for what I see in the photo?
+   - A snack plate or side dish: typically 100-300g total.
+   - A typical home-cooked main meal on a plate: 300-600g total.
+   - A large restaurant meal or full bowl of soup/stew: 400-800g total.
+   - A single item like a sandwich or wrap: 200-350g total.
+   - A drink alone: 150-350ml depending on glass/cup size.
+   If the total seems too high or too low for what the photo shows, go back and adjust individual weights proportionally. The individual weights must add up to a plausible total for the visible meal.
 
 IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings, burritos, wraps, spring rolls, samosas, ravioli, calzones, stuffed peppers, sushi rolls, sandwiches, or any food where the filling is hidden:
 - Set "enclosed" to true
