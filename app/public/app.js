@@ -554,7 +554,7 @@ function setUnitDisplay(unit, food) {
   const deltas = unit === "g" ? [[-25, "-25"], [-10, "-10"], [10, "+10"], [25, "+25"]]
     : unit === "oz" ? [[-1, "-1"], [-0.5, "-0.5"], [0.5, "+0.5"], [1, "+1"]]
     : [[-0.5, "-0.5"], [-0.25, "-¼"], [0.25, "+¼"], [0.5, "+0.5"]];
-  document.querySelectorAll(".weight-adj").forEach((btn, i) => {
+  modal.querySelectorAll(".weight-adj").forEach((btn, i) => {
     btn.dataset.delta = deltas[i][0];
     btn.textContent = deltas[i][1];
   });
@@ -696,7 +696,7 @@ function openAddFoodModal() {
   document.querySelectorAll(".unit-btn").forEach(b => b.classList.toggle("active", b.dataset.unit === "g"));
   weightInput.step = "5";
   const deltas = [[-25, "-25"], [-10, "-10"], [10, "+10"], [25, "+25"]];
-  document.querySelectorAll(".weight-adj").forEach((btn, i) => {
+  modal.querySelectorAll(".weight-adj").forEach((btn, i) => {
     btn.dataset.delta = deltas[i][0];
     btn.textContent = deltas[i][1];
   });
@@ -782,7 +782,7 @@ async function addFood(name, weightGrams) {
 }
 
 // Weight adjustment buttons
-document.querySelectorAll(".weight-adj").forEach((btn) => {
+modal.querySelectorAll(".weight-adj").forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const delta = parseFloat(btn.dataset.delta);
