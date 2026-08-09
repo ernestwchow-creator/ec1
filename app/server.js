@@ -167,14 +167,18 @@ For each food item, provide:
 
 These estimates are used as a fallback when the food is not in our reference database, so always provide them.
 
-WEIGHT ESTIMATION — Be careful and realistic with portion weights:
-- A standard dinner plate is ~25-27cm (10-11 inches). Use it as a size reference if visible.
-- Use utensils, hands, or other objects in frame for scale.
-- Common reference weights: a chicken breast is 120-170g, a cup of rice is ~185g, a medium potato is ~150g, a side salad is ~80-120g, a glass of water/drink is ~240ml, a slice of bread is ~30g, a tablespoon of sauce is ~15g, a handful of nuts is ~30g, an egg is ~50g.
-- Leaf vegetables are very light — a large plate of salad greens may only be 50-80g. Don't overestimate leafy foods.
-- Liquids: a standard glass is ~240ml, a small cup is ~150ml, a mug is ~350ml.
-- Err toward typical restaurant or home-cooked serving sizes rather than extremes.
-- Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein.
+WEIGHT ESTIMATION — This is critical. You MUST estimate weight from what you SEE in the photo, not from generic defaults:
+1. LOOK AT THE ACTUAL PORTION in the photo. Judge its physical volume, thickness, and spread.
+2. Use objects in the frame for scale: plates (~25-27cm / 10-11in diameter), bowls, forks (~19cm), knives (~22cm), spoons, hands, cups, napkins. Compare the food's size against these.
+3. Estimate the 3D volume — how thick/deep is the food? A thin smear of sauce is 10-15g; a thick mound of rice filling half a plate could be 200g+.
+4. Consider density: rice and grains are dense (~1g/ml packed), leafy greens are very light (a huge pile of lettuce may be only 40-60g), liquids ~1g/ml, bread is airy (~0.3g/ml), meat is dense (~1.1g/ml).
+5. ONLY THEN sanity-check against these reference portions — do NOT default to these if the photo shows a clearly different amount:
+   - Chicken breast: 120-170g. Egg: ~50g. Slice of bread: ~30g.
+   - Cup of rice: ~185g. Medium potato: ~150g. Tablespoon of sauce: ~15g.
+   - Side salad greens: 50-80g. Handful of nuts: ~30g.
+   - Glass of liquid: ~240ml. Small cup: ~150ml. Mug: ~350ml.
+6. If the portion in the photo is clearly SMALLER or LARGER than a standard serving, adjust accordingly. A few bites of rice left on a plate is 30-50g, not 185g.
+7. Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein. Weight by visible container size.
 
 IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings, burritos, wraps, spring rolls, samosas, ravioli, calzones, stuffed peppers, sushi rolls, sandwiches, or any food where the filling is hidden:
 - Set "enclosed" to true
