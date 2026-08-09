@@ -266,9 +266,12 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
         });
 
         const responseText = response.content[0].text;
+        console.log(`[analyze] model=${response.model} stop=${response.stop_reason} tokens_in=${response.usage.input_tokens} tokens_out=${response.usage.output_tokens}`);
+        console.log("[analyze] raw response:", responseText.substring(0, 2000));
 
         if (response.stop_reason === "max_tokens") {
           lastError = "Response truncated — retrying with more tokens";
+          console.log("[analyze] truncated, retrying...");
           continue;
         }
 
@@ -288,6 +291,13 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
     }
 
     const foodResults = identified.foods.map((food) => buildFoodResult(food));
+
+    console.log("[analyze] foods identified:");
+    for (const f of foodResults) {
+      console.log(`  ${f.name}: ${f.weight_grams}g, ox=${f.estimated_oxalate_mg}mg, ca=${f.dietary_calcium_mg}mg, carbs=${f.net_carbs_g}g, fat=${f.fat_g}g, protein=${f.protein_g}g, db=${f.in_database}, ai=${f.ai_estimated}`);
+    }
+    const totalWeight = foodResults.reduce((s, f) => s + f.weight_grams, 0);
+    console.log(`[analyze] total weight: ${totalWeight}g`);
 
     let totalOxalate = 0;
     let totalDietaryCa = 0;
