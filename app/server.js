@@ -167,6 +167,15 @@ For each food item, provide:
 
 These estimates are used as a fallback when the food is not in our reference database, so always provide them.
 
+WEIGHT ESTIMATION — Be careful and realistic with portion weights:
+- A standard dinner plate is ~25-27cm (10-11 inches). Use it as a size reference if visible.
+- Use utensils, hands, or other objects in frame for scale.
+- Common reference weights: a chicken breast is 120-170g, a cup of rice is ~185g, a medium potato is ~150g, a side salad is ~80-120g, a glass of water/drink is ~240ml, a slice of bread is ~30g, a tablespoon of sauce is ~15g, a handful of nuts is ~30g, an egg is ~50g.
+- Leaf vegetables are very light — a large plate of salad greens may only be 50-80g. Don't overestimate leafy foods.
+- Liquids: a standard glass is ~240ml, a small cup is ~150ml, a mug is ~350ml.
+- Err toward typical restaurant or home-cooked serving sizes rather than extremes.
+- Water, black coffee, plain tea: 0g carbs, 0 oxalate, 0 fat, 0 protein.
+
 IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings, burritos, wraps, spring rolls, samosas, ravioli, calzones, stuffed peppers, sushi rolls, sandwiches, or any food where the filling is hidden:
 - Set "enclosed" to true
 - Break down into the wrapper/shell AND your best guess at the filling ingredients as separate items
@@ -174,7 +183,7 @@ IMPORTANT — Enclosed/wrapped foods: For items like empanadas, pies, dumplings,
 - Set filling ingredients to "low" confidence with alternatives listing other common fillings for that type of food
 - Estimate filling weight as roughly 60-70% of total weight, wrapper as 30-40%
 
-Respond ONLY in this exact JSON format, no other text:
+Respond ONLY with a JSON object — no markdown fences, no explanation, no other text:
 {
   "foods": [
     { "name": "food name", "weight_grams": 150, "confidence": "high", "alternatives": [], "enclosed": false, "est_oxalate_mg_per_100g": 5, "est_calcium_mg_per_100g": 20, "est_carbs_g_per_100g": 45, "est_fiber_g_per_100g": 2, "est_fat_g_per_100g": 12, "est_protein_g_per_100g": 8, "est_glycemic_index": 65 },
@@ -188,6 +197,15 @@ Confidence levels: "high" = clearly identifiable, "medium" = likely but uncertai
 For "high" confidence items, alternatives should be an empty array.
 For "medium" or "low", always include plausible alternatives.
 Use standard food names that would appear in a nutrition database. If you see a composite dish (e.g., salad), break it into individual ingredients where possible.`;
+
+function extractJSON(text) {
+  let cleaned = text.trim();
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+  return JSON.parse(jsonMatch[0]);
+}
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "10mb" }));
@@ -208,27 +226,47 @@ app.post("/api/analyze", upload.single("photo"), async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 1500,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: imageData } },
-            { type: "text", text: FOOD_IDENTIFICATION_PROMPT },
-          ],
-        },
-      ],
-    });
+    const apiMessages = [
+      {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: imageData } },
+          { type: "text", text: FOOD_IDENTIFICATION_PROMPT },
+        ],
+      },
+    ];
 
-    const responseText = response.content[0].text;
-    let identified;
-    try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      identified = JSON.parse(jsonMatch[0]);
-    } catch {
-      return res.status(500).json({ error: "Failed to parse food identification response", raw: responseText });
+    let identified = null;
+    let lastError = null;
+
+    for (const maxTokens of [4096, 8192]) {
+      try {
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-5",
+          max_tokens: maxTokens,
+          messages: apiMessages,
+        });
+
+        const responseText = response.content[0].text;
+
+        if (response.stop_reason === "max_tokens") {
+          lastError = "Response truncated — retrying with more tokens";
+          continue;
+        }
+
+        identified = extractJSON(responseText);
+        if (identified && Array.isArray(identified.foods)) break;
+
+        lastError = "Invalid response structure";
+        identified = null;
+      } catch (apiErr) {
+        if (apiErr.status === 401) throw apiErr;
+        lastError = apiErr.message;
+      }
+    }
+
+    if (!identified || !Array.isArray(identified.foods)) {
+      return res.status(500).json({ error: "Failed to parse food identification response", detail: lastError });
     }
 
     const foodResults = identified.foods.map((food) => buildFoodResult(food));
@@ -377,7 +415,7 @@ app.post("/api/scan-label", upload.single("label"), async (req, res) => {
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
@@ -392,10 +430,10 @@ app.post("/api/scan-label", upload.single("label"), async (req, res) => {
     const responseText = response.content[0].text;
     let parsed;
     try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = extractJSON(responseText);
+      if (!parsed) throw new Error("No JSON found");
     } catch {
-      return res.status(500).json({ error: "Failed to parse label", raw: responseText });
+      return res.status(500).json({ error: "Failed to parse label" });
     }
 
     res.json({
