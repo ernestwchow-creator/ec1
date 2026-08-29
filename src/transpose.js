@@ -5,10 +5,14 @@
 const NOTES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NOTES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+// The four spellings that live outside both 12-note tables.
+const ENHARMONIC = { 'Cb': 11, 'Fb': 4, 'E#': 5, 'B#': 0 };
+
 function noteToIndex(note) {
   const n = String(note).replace('♯', '#').replace('♭', 'b');
   let i = NOTES_SHARP.indexOf(n);
   if (i === -1) i = NOTES_FLAT.indexOf(n);
+  if (i === -1 && n in ENHARMONIC) i = ENHARMONIC[n];
   return i;
 }
 
@@ -113,39 +117,172 @@ function isChordTable(tableData) {
   return totalCheckCells > 0 && chordCellCount >= totalCheckCells * 0.3;
 }
 
+// ---- Roman numeral charts ----
+//
+// A chart may be written key-relative: I IV V for major chords, i ii vi for
+// minor, a b/# prefix bending the degree (bIII, bvii), qualities as suffixes
+// (V7, IVΔ, iiiø, Vsus4, bIIImaj7), and slash basses that are themselves
+// degrees (V/IV, ii/V, or a bare /V continuing the previous bar).
+//
+// Degrees follow the chart's mode. Verified against a chart written out both
+// ways: in minor, VI means the natural-minor sixth (C in E minor), and the
+// naturally-flat degrees accept a redundant explicit b (bIII ≡ III).
+const MAJOR_DEGREE = { 1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11 };
+const MINOR_DEGREE = { 1: 0, 2: 2, 3: 3, 4: 5, 5: 7, 6: 8, 7: 10 };
+const NUMERALS = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
+
+const ROMAN_CORE = /^([#b♯♭]?)(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i)(.*)$/;
+
+// Splits a token into wrapper punctuation and its core, so "(bVII)" or
+// "||:i" parse and reassemble without losing the wrappers.
+function splitWrappers(token) {
+  const m = String(token).match(/^([^A-Za-z#♯♭]*)([\s\S]*?)([)\]>*.,!?:|]*)$/);
+  return { open: m[1], core: m[2], close: m[3] };
+}
+
+// Parses one roman token core. Returns null when it is not one.
+function parseRomanCore(core) {
+  const m = core.match(ROMAN_CORE);
+  if (!m) return null;
+  const [, accidental, numeral, tail] = m;
+
+  const lower = numeral === numeral.toLowerCase();
+
+  let quality = tail;
+  let bass = null;
+  const bm = tail.match(/^(.*)\/([#b♯♭]?)(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i)$/);
+  if (bm) {
+    quality = bm[1];
+    bass = { accidental: bm[2], numeral: bm[3] };
+  }
+  if (quality && !QUALITY.test(quality)) return null;
+
+  return {
+    accidental,
+    degree: NUMERALS[numeral.toLowerCase()],
+    lower,
+    quality,
+    bass
+  };
+}
+
+function isRomanToken(token) {
+  const { core } = splitWrappers(token);
+  if (!core) return false;
+  return !!parseRomanCore(core);
+}
+
+function cellContainsRoman(text) {
+  if (!text || text.length > 120) return false;
+  const tokens = splitCell(text).map(t => t.trim())
+    .filter(t => t && t !== '|' && !isStructuralToken(t));
+  if (tokens.length === 0) return false;
+  const romanCount = tokens.filter(isRomanToken).length;
+  return romanCount > 0 && romanCount >= tokens.length * 0.4;
+}
+
 function isRomanNumeralTable(tableData) {
-  let romanCount = 0;
-  let totalTokens = 0;
+  let romanCellCount = 0;
+  let totalCheckCells = 0;
 
   for (const row of tableData) {
     for (let c = 1; c < row.length; c++) {
       const text = String(row[c] || '').trim();
       if (!text) continue;
-      for (const t of text.split(/\s+/)) {
-        const cleaned = t.replace(WRAPPER_CHARS, '').replace(/\//g, '').trim();
-        if (!cleaned) continue;
-        totalTokens++;
-        if (/^[ivIV]+[0-9mMajdimaugsuΔø°]*$/.test(cleaned) && !/^[A-G]/.test(cleaned)) {
-          romanCount++;
+      totalCheckCells++;
+      if (cellContainsRoman(text)) romanCellCount++;
+    }
+  }
+
+  return totalCheckCells > 0 && romanCellCount >= totalCheckCells * 0.3;
+}
+
+// Major unless the first tonic numeral in the chart is a lowercase i.
+function detectRomanMode(tableData) {
+  const startCol = detectLabelColumn(tableData, true) ? 1 : 0;
+  for (const row of tableData) {
+    for (let c = startCol; c < row.length; c++) {
+      for (const t of splitCell(String(row[c] || ''))) {
+        const token = t.trim();
+        if (!token || token === '|' || isStructuralToken(token)) continue;
+        const parsed = parseRomanCore(splitWrappers(token).core);
+        if (parsed && parsed.degree === 1 && !parsed.accidental) {
+          return parsed.lower ? 'minor' : 'major';
         }
       }
     }
   }
+  return 'major';
+}
 
-  return totalTokens > 0 && romanCount >= totalTokens * 0.3;
+function degreeToSemitones(degree, accidental, mode) {
+  const minor = mode === 'minor';
+  const base = (minor ? MINOR_DEGREE : MAJOR_DEGREE)[degree];
+  const acc = accidental.replace('♯', '#').replace('♭', 'b');
+  if (acc === '#') return base + 1;
+  if (acc === 'b') {
+    // In minor the 3rd/6th/7th are already flat; an explicit b is the same
+    // degree written defensively, not a double flat.
+    if (minor && MINOR_DEGREE[degree] !== MAJOR_DEGREE[degree]) return base;
+    return base - 1;
+  }
+  return base;
+}
+
+// Realizes one roman token into a chord in the given key, e.g. in C major:
+// ii7 -> Dm7, V/IV -> G/F, iiiø -> Eø, bVII -> Bb.
+function realizeRomanToken(token, keyRoot, mode, useFlats) {
+  const { open, core, close } = splitWrappers(token);
+  const parsed = parseRomanCore(core);
+  if (!parsed) return token;
+
+  const keyIdx = noteToIndex(keyRoot);
+  if (keyIdx === -1) return token;
+
+  // A flattened degree spells flat and a raised one sharp, whatever the
+  // chart-wide toggle says: bVII in C is Bb, never A#.
+  const note = (offset, accidental) => {
+    const idx = ((keyIdx + offset) % 12 + 12) % 12;
+    const acc = accidental.replace('♯', '#').replace('♭', 'b');
+    const flats = acc === 'b' ? true : acc === '#' ? false : useFlats;
+    return flats ? NOTES_FLAT[idx] : NOTES_SHARP[idx];
+  };
+
+  const root = note(
+    degreeToSemitones(parsed.degree, parsed.accidental, mode), parsed.accidental);
+  // Lowercase means minor — unless the suffix already fixes the quality as
+  // diminished or half-diminished, where an added m would be wrong (iiiø -> Eø).
+  const minorMark = parsed.lower && !/^(ø|Ø|º|°|dim)/.test(parsed.quality) ? 'm' : '';
+
+  let out = root + minorMark + parsed.quality;
+  if (parsed.bass) {
+    out += '/' + note(degreeToSemitones(
+      NUMERALS[parsed.bass.numeral.toLowerCase()], parsed.bass.accidental, mode),
+      parsed.bass.accidental);
+  }
+  return open + out + close;
+}
+
+function realizeRomanCellText(text, keyRoot, mode, useFlats) {
+  if (!text || !text.trim()) return text;
+  return splitCell(text).map(part => {
+    if (/^\s*$/.test(part) || part === '|') return part;
+    return realizeRomanToken(part, keyRoot, mode, useFlats);
+  }).join('');
 }
 
 // Whether column 0 holds section labels (and must not be transposed) rather
 // than chords. Two chart styles exist side by side: "[Verse]"-style labels or
 // bare A/B/C form letters, versus charts whose first column is simply the
 // first bar of each line.
-function detectLabelColumn(tableData) {
+function detectLabelColumn(tableData, roman) {
   const cells = tableData
     .map(row => String(row[0] || '').trim())
     .filter(Boolean);
   if (!cells.length) return false;
 
-  const nonChord = cells.filter(c => !cellContainsChords(c)).length;
+  const cellTest = roman ? cellContainsRoman : cellContainsChords;
+  const nonChord = cells.filter(c => !cellTest(c)).length;
   if (nonChord >= cells.length * 0.5) return true;
 
   // Bare letters are ambiguous: "A" is both a chord and a section name. Treat
@@ -190,17 +327,37 @@ function buildChartGroups(tableDatas) {
   let current = null;
 
   tableDatas.forEach((data, i) => {
+    const roman = isRomanNumeralTable(data);
+
+    if (roman) {
+      const part = { data, hasLabelColumn: detectLabelColumn(data, true), chordTableIndex: i };
+      if (current && current.roman) {
+        current.parts.push(part);
+      } else {
+        current = { roman: true, pitch: null, detectedKey: null, mode: null, parts: [part] };
+        groups.push(current);
+      }
+      return;
+    }
+
     const key = detectKeyFromChart(data);
     const pitch = noteToIndex(key);
     const part = { data, hasLabelColumn: detectLabelColumn(data), chordTableIndex: i };
 
-    if (current && current.pitch === pitch) {
+    if (current && !current.roman && current.pitch === pitch) {
       current.parts.push(part);
     } else {
-      current = { pitch, detectedKey: key, parts: [part] };
+      current = { roman: false, pitch, detectedKey: key, parts: [part] };
       groups.push(current);
     }
   });
+
+  for (const g of groups) {
+    if (!g.roman) continue;
+    // The chart's mode comes from its first tonic numeral; detectRomanMode
+    // falls back to major, so any part reporting minor decides it.
+    g.mode = g.parts.some(p => detectRomanMode(p.data) === 'minor') ? 'minor' : 'major';
+  }
 
   return groups;
 }
@@ -257,6 +414,8 @@ const api = {
   NOTES_SHARP, NOTES_FLAT,
   noteToIndex, transposeNote, transposeToken, transposeCellText,
   isChordToken, cellContainsChords, isChordTable, isRomanNumeralTable,
+  isRomanToken, cellContainsRoman, detectRomanMode,
+  realizeRomanToken, realizeRomanCellText,
   detectLabelColumn, detectKeyFromChart, buildChartGroups, parsePastedChart,
   preferFlatsFor, preferFlatsForKeyShift
 };

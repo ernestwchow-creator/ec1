@@ -270,6 +270,34 @@
       box-shadow: 1px 0 0 #e0e0e0;
     }
 
+    .key-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+    }
+
+    .key-btn {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0.3rem 0.6rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: all 0.15s;
+    }
+    .key-btn.active { border-color: #6c5ce7; background: #6c5ce7; color: #fff; }
+    .key-btn:active { border-color: #6c5ce7; }
+
     .transpose-controls {
       display: flex;
       align-items: center;
@@ -417,7 +445,35 @@
       .chord-table { font-size: 0.8rem; }
       .chord-table td { padding: 0.5rem 0.55rem; }
 
-      .transpose-controls {
+      .key-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+    }
+
+    .key-btn {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0.3rem 0.6rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: all 0.15s;
+    }
+    .key-btn.active { border-color: #6c5ce7; background: #6c5ce7; color: #fff; }
+    .key-btn:active { border-color: #6c5ce7; }
+
+    .transpose-controls {
         flex-direction: column;
         align-items: stretch;
         gap: 0.85rem;
@@ -510,7 +566,8 @@
           <div id="multi-chart-selector" class="chart-selector hidden"></div>
 
           <div class="transpose-controls">
-            <div class="semitone-group">
+            <div class="key-picker hidden" id="key-picker"></div>
+            <div class="semitone-group" id="semitone-group">
               <button class="semitone-btn" onclick="changeSemitones(-1)" aria-label="Transpose down a semitone">&minus;</button>
               <span class="semitone-display" id="semitone-display">0</span>
               <button class="semitone-btn" onclick="changeSemitones(1)" aria-label="Transpose up a semitone">+</button>
@@ -581,6 +638,8 @@
       useFlats: false,
       // Once the spelling is chosen by hand it stops following the target key.
       accidentalChosen: false,
+      // Roman charts: the key the numerals are realized into.
+      targetKey: 'C',
       authenticated: false,
       canBrowse: false,
       canCopy: false,
@@ -790,11 +849,11 @@
       if (!text.trim()) return;
 
       const rawParts = parsePastedChart(text);
-      // Prefer the parts that look like chord tables; if none qualify, trust
-      // the paste as-is — the user knows it is a chart even if detection
-      // does not.
-      const chordParts = rawParts.filter(d => isChordTable(d) && !isRomanNumeralTable(d));
-      const chosen = chordParts.length ? chordParts : rawParts;
+      // Prefer the parts that look like charts (chords or roman numerals); if
+      // none qualify, trust the paste as-is — the user knows it is a chart
+      // even if detection does not.
+      const chartParts = rawParts.filter(d => isChordTable(d) || isRomanNumeralTable(d));
+      const chosen = chartParts.length ? chartParts : rawParts;
 
       if (!chosen.length) {
         errDiv.innerHTML = '<div class="message error">Could not find a table in the pasted text. ' +
@@ -806,11 +865,13 @@
         title: 'Pasted chart',
         documentId: null,
         pasted: true,
-        chordCharts: [{
-          index: 0,
-          detectedKey: detectKeyFromChart(chosen[0]),
-          parts: chosen.map(data => ({ data, hasLabelColumn: detectLabelColumn(data) }))
-        }]
+        chordCharts: buildChartGroups(chosen).map((g, i) => ({
+          index: i,
+          detectedKey: g.detectedKey,
+          roman: !!g.roman,
+          mode: g.mode || null,
+          parts: g.parts.map(p => ({ data: p.data, hasLabelColumn: p.hasLabelColumn }))
+        }))
       };
       state.selectedChart = 0;
       state.semitones = 0;
@@ -859,7 +920,9 @@
         selector.innerHTML = state.doc.chordCharts.map((chart, i) =>
           '<button class="chart-tab' + (i === state.selectedChart ? ' active' : '') +
           '" onclick="selectChart(' + i + ')">Chart ' + (i + 1) +
-          ' (Key of ' + escapeHtml(chart.detectedKey) + ')' +
+          (chart.roman
+            ? ' (Roman numerals)'
+            : ' (Key of ' + escapeHtml(chart.detectedKey) + ')') +
           (chart.parts.length > 1 ? ' &middot; ' + chart.parts.length + ' parts' : '') +
           '</button>'
         ).join('');
@@ -867,14 +930,40 @@
         selector.classList.add('hidden');
       }
 
+      renderControls();
       renderOriginal();
       updateKeyDisplay();
       updatePreview();
     }
 
+    // Chord charts move by semitones; roman charts pick a destination key.
+    function renderControls() {
+      const chart = state.doc.chordCharts[state.selectedChart];
+      const roman = !!chart.roman;
+      document.getElementById('semitone-group').classList.toggle('hidden', roman);
+      const picker = document.getElementById('key-picker');
+      picker.classList.toggle('hidden', !roman);
+      if (roman) {
+        const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+        picker.innerHTML = KEYS.map(k =>
+          '<button class="key-btn' + (k === state.targetKey ? ' active' : '') +
+          '" onclick="setTargetKey(\'' + k + '\')">' + k + '</button>'
+        ).join('');
+      }
+    }
+
+    function setTargetKey(key) {
+      state.targetKey = key;
+      if (!state.accidentalChosen) state.useFlats = preferFlatsFor(key);
+      renderControls();
+      updatePreview();
+      updateKeyDisplay();
+    }
+
     function selectChart(idx) {
       state.selectedChart = idx;
       state.semitones = 0;
+      state.accidentalChosen = false;
       displayDocument();
     }
 
@@ -918,7 +1007,9 @@
     function applyAutoAccidental() {
       if (state.accidentalChosen || !state.doc) return;
       const chart = state.doc.chordCharts[state.selectedChart];
-      state.useFlats = preferFlatsForKeyShift(chart.detectedKey, state.semitones);
+      state.useFlats = chart.roman
+        ? preferFlatsFor(state.targetKey)
+        : preferFlatsForKeyShift(chart.detectedKey, state.semitones);
     }
 
     function renderAccidentalToggle() {
@@ -936,10 +1027,17 @@
 
     function updateKeyDisplay() {
       const chart = state.doc.chordCharts[state.selectedChart];
+      renderAccidentalToggle();
+
+      if (chart.roman) {
+        document.getElementById('key-display').innerHTML =
+          'Roman numerals (' + escapeHtml(chart.mode || 'major') + ') &rarr; key of <strong>' +
+          escapeHtml(state.targetKey) + '</strong>';
+        return;
+      }
+
       const origKey = chart.detectedKey;
       const newKey = transposeNote(origKey, state.semitones, state.useFlats);
-
-      renderAccidentalToggle();
 
       document.getElementById('semitone-display').textContent =
         (state.semitones > 0 ? '+' : '') + state.semitones;
@@ -956,8 +1054,10 @@
       const pasteActions = document.getElementById('paste-actions');
       const compare = document.getElementById('compare');
       const pasted = !!(state.doc && state.doc.pasted);
+      const chart = state.doc.chordCharts[state.selectedChart];
+      const roman = !!chart.roman;
 
-      if (state.semitones === 0) {
+      if (!roman && state.semitones === 0) {
         section.classList.add('hidden');
         addSection.classList.add('hidden');
         pasteActions.classList.add('hidden');
@@ -972,13 +1072,14 @@
       addSection.classList.toggle('hidden', pasted || !state.authenticated);
       pasteActions.classList.toggle('hidden', !pasted);
 
-      const chart = state.doc.chordCharts[state.selectedChart];
       const transposedParts = chart.parts.map(part =>
         part.data.map(row =>
-          row.map((cell, c) =>
-            (part.hasLabelColumn && c === 0)
-              ? cell
-              : transposeCellText(cell, state.semitones, state.useFlats))
+          row.map((cell, c) => {
+            if (part.hasLabelColumn && c === 0) return cell;
+            return roman
+              ? realizeRomanCellText(cell, state.targetKey, chart.mode, state.useFlats)
+              : transposeCellText(cell, state.semitones, state.useFlats);
+          })
         )
       );
       state.lastTransposedParts = transposedParts;
@@ -990,7 +1091,8 @@
     }
 
     async function addToDocument() {
-      if (state.semitones === 0) return;
+      const chart = state.doc.chordCharts[state.selectedChart];
+      if (!chart.roman && state.semitones === 0) return;
 
       const mode = currentMode();
       const btn = document.getElementById('add-btn');
@@ -1008,6 +1110,7 @@
             chartIndex: state.selectedChart,
             semitones: state.semitones,
             useFlats: state.useFlats,
+            targetKey: chart.roman ? state.targetKey : undefined,
             mode
           })
         });

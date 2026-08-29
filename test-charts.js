@@ -5,6 +5,8 @@
 const assert = require('assert');
 const {
   transposeToken, transposeCellText, isChordToken, isChordTable,
+  isRomanNumeralTable, isRomanToken, detectRomanMode,
+  realizeRomanToken, realizeRomanCellText,
   detectLabelColumn, detectKeyFromChart, buildChartGroups, parsePastedChart
 } = require('./src/transpose');
 
@@ -166,6 +168,71 @@ eq(detectKeyFromChart(FIRST_KISS_F), 'F', "Ernie's key still F");
   const spaced = 'Am7    Dm7    G7    C∆';
   const parts = parsePastedChart(spaced);
   eq(parts[0][0].length, 4, 'runs of spaces split into cells');
+}
+
+// ---- Enharmonic roots outside the two 12-note tables ----
+eq(transposeToken('Cb', 2, true), 'Db', 'Cb transposes (was returned unchanged)');
+eq(transposeToken('CbΔ7', 1, false), 'CΔ7', 'Cb with quality');
+eq(transposeToken('E#7', 2, false), 'G7', 'E# transposes');
+eq(transposeToken('Fb', -1, true), 'Eb', 'Fb transposes');
+eq(transposeToken('B#m', 3, true), 'Ebm', 'B# transposes');
+eq(transposeToken('A/Cb', 2, true), 'B/Db', 'Cb as a bass note');
+
+// ---- Roman numeral charts ----
+// Ground truth: the "Crazy" doc holds the same chart in Em, Am and Roman,
+// so the realization is checked against the user's own hand-written keys.
+const CRAZY_ROMAN = [
+  ['[Verse 1]', '||: i', 'i', 'bIIImaj7', 'bIIImaj7', 'VImaj7', 'VImaj7', 'Vsus4', 'V  :||'],
+  ['[Verses 2, 3', 'I', 'I', 'VImaj7', 'VImaj7', 'bIIImaj7', 'bIIImaj7', 'Vsus4', 'V'],
+  ['[Chorus]', 'i', 'i', 'bIII', 'bIII', 'VImaj7', 'VImaj7', 'Vsus4', 'V']
+];
+
+ok(isRomanNumeralTable(CRAZY_ROMAN), 'roman chart detected as roman');
+ok(!isChordTable(CRAZY_ROMAN), 'roman chart is not a chord chart');
+ok(!isRomanNumeralTable(YOU_DONT_KNOW_ME), 'chord chart is not roman');
+ok(detectLabelColumn(CRAZY_ROMAN, true), 'roman chart label column detected');
+eq(detectRomanMode(CRAZY_ROMAN), 'minor', 'minor mode from the first tonic (i)');
+
+// Realized in A minor, row 2 must equal his own Am chart row 2.
+{
+  const realized = CRAZY_ROMAN[1].slice(1).map(c => realizeRomanCellText(c, 'A', 'minor', false));
+  eq(realized.join(' , '), 'A , A , Fmaj7 , Fmaj7 , Cmaj7 , Cmaj7 , Esus4 , E',
+     'Crazy realized in Am matches his own Am chart');
+}
+// And in E minor with the repeat signs intact.
+eq(realizeRomanCellText('||: i', 'E', 'minor', false), '||: Em', 'repeat sign survives realization');
+eq(realizeRomanCellText('V  :||', 'E', 'minor', false), 'B  :||', 'trailing repeat survives');
+
+// Tokens from "No More Lonely Nights" (major mode, realized in C).
+const NMLN = {
+  'V/IV': 'G/F', 'ii7': 'Dm7', 'V7': 'G7', 'vi7': 'Am7', '/V': '/G',
+  'IVΔ': 'FΔ', 'IΔ': 'CΔ', 'III7': 'E7', 'ii/V': 'Dm/G', 'iii7': 'Em7',
+  'ii7.': 'Dm7.', 'IV/V': 'F/G'
+};
+for (const [tok, want] of Object.entries(NMLN)) {
+  eq(realizeRomanToken(tok, 'C', 'major', false), want, `NMLN ${tok} -> ${want}`);
+}
+
+// The notation from the user's description.
+eq(realizeRomanToken('bIII', 'C', 'major', false), 'Eb', 'bIII = flat third, major');
+eq(realizeRomanToken('bvii', 'C', 'major', false), 'Bbm', 'bvii = flat seventh, minor');
+eq(realizeRomanToken('iiiø', 'C', 'major', false), 'Eø', 'iiiø = m7b5, no extra m');
+eq(realizeRomanToken('viiº', 'C', 'major', false), 'Bº', 'viiº diminished, no extra m');
+eq(realizeRomanToken('bVII', 'C', 'major', false), 'Bb', 'flat degree spells flat even in sharps mode');
+eq(realizeRomanToken('#iv', 'C', 'major', true), 'F#m', 'sharp degree spells sharp even in flats mode');
+
+// Words that merely start with roman letters must not realize.
+for (const word of ["I've", 'in', 'Verse', 'victory', 'Div', 'x4']) {
+  ok(!isRomanToken(word), `"${word}" is not a roman token`);
+}
+
+// Grouping: absolute charts and the roman chart stay separate.
+{
+  const EM = [['[V]', 'Em', 'G', 'C', 'Bsus4']];
+  const AM = [['[V]', 'Am', 'Cmaj7', 'F', 'Esus4']];
+  const groups = buildChartGroups([EM, AM, CRAZY_ROMAN]);
+  eq(groups.length, 3, 'Em, Am and Roman are three separate charts');
+  ok(groups[2].roman && groups[2].mode === 'minor', 'roman group carries its mode');
 }
 
 console.log(`\nAll ${passed} chart tests passed.`);

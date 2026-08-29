@@ -46,8 +46,27 @@ into a spreadsheet or table.
 - A sharps/flats toggle, which starts on whichever the destination key is
   conventionally written in — transposing to Eb gives `Eb Cm`, not `D# B#m` —
   and stays put once set by hand
-- Skips lyric tables and Roman-numeral analysis tables
+- Enharmonic spellings outside the usual twelve: `Cb`, `Fb`, `E#`, `B#`
+- Skips lyric tables
 - Documents with several charts: pick which one to transpose
+
+## Roman numeral charts
+
+A chart written key-relative — `I IV V` for major chords, `i ii vi` for minor,
+`bIII` / `bvii` for flattened degrees, qualities as suffixes (`V7`, `IVΔ`,
+`iiiø`, `Vsus4`, `bIIImaj7`), slash degrees (`V/IV`, `ii/V`, a bare `/V`) — is
+detected as its own kind of chart. Instead of a semitone stepper you pick a
+**target key**, and the numerals are realized into chords: in C major, `ii7`
+becomes `Dm7`, `iiiø` becomes `Eø`, `V/IV` becomes `G/F`.
+
+The chart's mode comes from its first tonic numeral: lowercase `i` means minor,
+and minor-mode degrees follow the natural minor scale (`VI` in E minor is C),
+with the naturally-flat degrees accepting an explicit `b` (`bIII` ≡ `III`).
+Flattened degrees always spell flat (`bVII` in C is `Bb`, never `A#`) and
+raised ones sharp, whatever the sharps/flats toggle says.
+
+Realized charts can be appended to the document, saved as a copy named for the
+chosen key, or — when pasted as text — copied back to the clipboard.
 
 ## Local setup
 

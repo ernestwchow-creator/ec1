@@ -9,8 +9,14 @@ const {
 } = require('./src/docs');
 const {
   isChordTable, isRomanNumeralTable, transposeCellText,
+  realizeRomanCellText, noteToIndex,
   buildChartGroups, transposeNote
 } = require('./src/transpose');
+
+// A table is a chart whether written in chords or roman numerals. Every place
+// that indexes chart tables (grouping, and rewriting the copy) must share this
+// predicate, or the indices drift.
+const isChartTable = (data) => isChordTable(data) || isRomanNumeralTable(data);
 const { readTokens, writeTokens, clearTokens } = require('./src/session');
 
 const app = express();
@@ -373,13 +379,13 @@ app.get('/api/document', async (req, res) => {
     const doc = await readDocument(auth, docId);
     const tables = extractTables(doc);
 
-    const chordDatas = tables
-      .filter(t => isChordTable(t.data) && !isRomanNumeralTable(t.data))
-      .map(t => t.data);
+    const chartDatas = tables.filter(t => isChartTable(t.data)).map(t => t.data);
 
-    const chordCharts = buildChartGroups(chordDatas).map((g, i) => ({
+    const chordCharts = buildChartGroups(chartDatas).map((g, i) => ({
       index: i,
       detectedKey: g.detectedKey,
+      roman: !!g.roman,
+      mode: g.mode || null,
       parts: g.parts.map(p => ({ data: p.data, hasLabelColumn: p.hasLabelColumn }))
     }));
 
@@ -404,9 +410,11 @@ app.post('/api/transpose', async (req, res) => {
   const auth = getAuthedClient(req, res);
   if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
-  const { documentId, chartIndex, semitones, useFlats, mode } = req.body;
+  const { documentId, chartIndex, semitones, useFlats, mode, targetKey } = req.body;
   if (!documentId) return res.status(400).json({ error: 'Missing documentId' });
-  if (semitones === undefined || semitones === 0) return res.status(400).json({ error: 'Semitones must be non-zero' });
+  // Chord charts move by semitones; roman charts are realized into a target
+  // key. Which one applies is only known once the chart is loaded, so the
+  // per-kind validation happens after the group lookup below.
 
   const outputMode = mode === 'copy' ? 'copy' : 'append';
   const tokens = readTokens(req, SECRET);
@@ -420,28 +428,47 @@ app.post('/api/transpose', async (req, res) => {
   try {
     const doc = await readDocument(auth, documentId);
     const tables = extractTables(doc);
-    const isChart = (data) => isChordTable(data) && !isRomanNumeralTable(data);
-    const groups = buildChartGroups(tables.map(t => t.data).filter(isChart));
+    const groups = buildChartGroups(tables.map(t => t.data).filter(isChartTable));
 
     const index = chartIndex || 0;
     const chart = groups[index];
     if (!chart) return res.status(404).json({ error: 'Chord chart not found in document' });
 
-    // Column 0 is skipped only when it holds section labels; in charts without
-    // a label column the first column is the first bar of each line.
-    const transposedParts = chart.parts.map(part =>
-      part.data.map(row =>
-        row.map((cell, c) => {
-          if (part.hasLabelColumn && c === 0) return cell;
-          return transposeCellText(cell, semitones, useFlats);
-        })
-      )
-    );
+    let transposedParts, newKey, title;
 
-    const originalKey = chart.detectedKey;
-    const newKey = transposeNote(originalKey, semitones, useFlats);
-    const direction = semitones > 0 ? '+' : '';
-    const title = `Transposed to ${newKey} (${direction}${semitones} semitones from ${originalKey})`;
+    if (chart.roman) {
+      if (!targetKey || noteToIndex(targetKey) === -1) {
+        return res.status(400).json({ error: 'A target key is needed to realize a Roman numeral chart' });
+      }
+      transposedParts = chart.parts.map(part =>
+        part.data.map(row =>
+          row.map((cell, c) => {
+            if (part.hasLabelColumn && c === 0) return cell;
+            return realizeRomanCellText(cell, targetKey, chart.mode, useFlats);
+          })
+        )
+      );
+      newKey = targetKey;
+      title = `In ${targetKey} (from Roman numerals, ${chart.mode})`;
+    } else {
+      if (semitones === undefined || semitones === 0) {
+        return res.status(400).json({ error: 'Semitones must be non-zero' });
+      }
+      // Column 0 is skipped only when it holds section labels; in charts
+      // without a label column the first column is the first bar of each line.
+      transposedParts = chart.parts.map(part =>
+        part.data.map(row =>
+          row.map((cell, c) => {
+            if (part.hasLabelColumn && c === 0) return cell;
+            return transposeCellText(cell, semitones, useFlats);
+          })
+        )
+      );
+      const originalKey = chart.detectedKey;
+      newKey = transposeNote(originalKey, semitones, useFlats);
+      const direction = semitones > 0 ? '+' : '';
+      title = `Transposed to ${newKey} (${direction}${semitones} semitones from ${originalKey})`;
+    }
 
     if (outputMode === 'copy') {
       // Strip any "(key)" this app added previously, so transposing a copy of a
@@ -450,7 +477,7 @@ app.post('/api/transpose', async (req, res) => {
       const newName = `${baseName} (${newKey})`;
 
       const copy = await copyDocument(auth, documentId, newName);
-      await replaceChart(auth, copy.id, isChart,
+      await replaceChart(auth, copy.id, isChartTable,
         chart.parts.map(p => p.chordTableIndex), transposedParts);
 
       return res.json({
