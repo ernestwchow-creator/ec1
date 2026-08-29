@@ -59,6 +59,10 @@ detected as its own kind of chart. Instead of a semitone stepper you pick a
 **target key**, and the numerals are realized into chords: in C major, `ii7`
 becomes `Dm7`, `iiiø` becomes `Eø`, `V/IV` becomes `G/F`.
 
+A slash degree always means a bass note, never a secondary dominant: `V/IV`
+is the V chord over the fourth degree in the bass (`G/F` in C), not "V of
+IV".
+
 The chart's mode comes from its first tonic numeral: lowercase `i` means minor,
 and minor-mode degrees follow the natural minor scale (`VI` in E minor is C),
 with the naturally-flat degrees accepting an explicit `b` (`bIII` ≡ `III`).
