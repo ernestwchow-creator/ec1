@@ -147,7 +147,7 @@ footer{font-size:13px;color:var(--mute)}
   <aside class="about" aria-labelledby="aboutH">
     <h2 id="aboutH">About this page</h2>
     <div class="grid">
-      <p><b>Independent and volunteer-built.</b> This explainer was created by a volunteer to help people understand BAAJA and the debate around it. It is not affiliated with any party, campaign, advocacy group or the bill's sponsors.</p>
+      <p><b>Independent and volunteer-built.</b> This explainer was created by a volunteer to help people understand BAAJA and the debate around it. It is not affiliated with any party, campaign, or the bill's sponsors.</p>
       <p><b>Produced with AI.</b> The research, claim ratings and answers to questions are produced with AI (Anthropic's Claude), working from the bill text and the published sources listed on this page.</p>
       <p><b>Neutral, best-effort, and fallible.</b> It aims to be neutral and unbiased, applying the same standards to claims from every side. It may still contain errors, omissions or out-of-date information.</p>
       <p><b>Verify before relying on it.</b> Bill quotes link to images of the official pages, and every claim lists its sources. Check anything important against the original text and sources. Nothing here is legal advice; consult a qualified attorney about how the bill may affect you.</p>
@@ -1981,7 +1981,7 @@ document.getElementById('scale').innerHTML = order.map(k => `<div><span class="v
 
 document.getElementById('srcTable').innerHTML = `<thead><tr><th>Source</th><th>Item</th><th>Type</th></tr></thead><tbody>` +
   Object.values(S).map(s => `<tr><td><b>${esc(s[0])}</b></td><td><a href="${esc(s[2])}" target="_blank" rel="noopener">${esc(s[1])}</a></td><td>${esc(s[3])}</td></tr>`).join('') + `</tbody>`;
-document.getElementById('foot').innerHTML = `Bill text: ${B.links.map(l=>`<a href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])}</a>`).join(' · ')}. Quotations are from the Nov 7 substitute text (S.Amdt. 6883). Other section references follow the Bipartisan Policy Center's section-by-section. Independent, volunteer-built explainer produced with AI assistance; best-effort and not affiliated with any party or advocacy group. Not legal advice; verify important points against the original sources. Last verified ${esc(fmt(ver))}.`;
+document.getElementById('foot').innerHTML = `Bill text: ${B.links.map(l=>`<a href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])}</a>`).join(' · ')}. Quotations are from the Nov 7 substitute text (S.Amdt. 6883). Other section references follow the Bipartisan Policy Center's section-by-section. Independent, volunteer-built explainer produced with AI assistance; best-effort and not affiliated with any party, campaign, or the bill's sponsors. Not legal advice; verify important points against the original sources. Last verified ${esc(fmt(ver))}.`;
 const statusEl = document.getElementById('status');
 const fmtShort = iso => { const t = new Date(iso); return isNaN(t) ? '' : t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}); };
 let pendingDoc = null, pendingSnap = null;
