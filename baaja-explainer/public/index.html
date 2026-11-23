@@ -2224,7 +2224,7 @@ document.getElementById('whoList').innerHTML = [...sideOrder,'mixed','analyst'].
 document.getElementById('scale').innerHTML = order.map(k => `<div><span class="verdict" style="background:${vcol(k)}">${esc(V[k][0])}</span><span>${esc(V[k][1])}</span></div>`).join('');
 
 document.getElementById('srcTable').innerHTML = `<thead><tr><th>Source</th><th>Item</th><th>Type</th></tr></thead><tbody>` +
-  Object.values(S).map(s => `<tr><td><b>${esc(s[0])}</b></td><td><a href="${esc(s[2])}" target="_blank" rel="noopener">${esc(s[1])}</a></td><td>${esc(s[3])}</td></tr>`).join('') + `</tbody>`;
+  Object.values(S).slice().sort((x, y) => { const k = v => v.replace(/^the\s+/i,''), o = {sensitivity:'base'}; return k(x[0]).localeCompare(k(y[0]), 'en', o) || x[1].localeCompare(y[1], 'en', o); }).map(s => `<tr><td><b>${esc(s[0])}</b></td><td><a href="${esc(s[2])}" target="_blank" rel="noopener">${esc(s[1])}</a></td><td>${esc(s[3])}</td></tr>`).join('') + `</tbody>`;
 document.getElementById('foot').innerHTML = `Bill text: ${B.links.map(l=>`<a href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])}</a>`).join(' · ')}. Quotations are from the Nov 7 substitute text (S.Amdt. 6883). Other section references follow the Bipartisan Policy Center's section-by-section. Independent, volunteer-built explainer produced with AI assistance; best-effort and not affiliated with any party, campaign, or the bill's sponsors. Not legal advice; verify important points against the original sources. Last verified ${esc(fmt(ver))}.`;
 const statusEl = document.getElementById('status');
 const fmtShort = iso => { const t = new Date(iso); return isNaN(t) ? '' : t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}); };
