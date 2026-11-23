@@ -233,7 +233,7 @@ footer{font-size:13px;color:var(--mute)}
 
 <section class="band" id="who"><div class="wrap">
   <h2>Who's on which side</h2>
-  <p class="lede">Positions as stated publicly by each organization. Many on both sides back the transmission title and differ over the rest.</p>
+  <p class="lede">Positions as stated publicly by each organization, listed alphabetically within each group. Many on both sides back the transmission title and differ over the rest.</p>
   <div class="cols" id="whoList"></div>
 </div></section>
 
@@ -1976,7 +1976,11 @@ document.getElementById('chgTable').innerHTML = `<thead><tr><th>Area</th><th>Cha
 
 const posName={support:'Support',oppose:'Oppose or oppose as written',mixed:'Mixed or seeking changes',analyst:'Independent analysts'};
 const posCol={support:'var(--v-accurate)',oppose:'var(--v-unsupported)',mixed:'var(--v-partly)',analyst:'var(--v-opinion)'};
-document.getElementById('whoList').innerHTML = Object.keys(posName).map(k => `<div><h3 style="border-top:4px solid ${posCol[k]};padding-top:8px">${posName[k]}</h3><ul class="stk">${(D.stakeholders||[]).filter(x=>x[1]===k).map(x=>`<li><b>${esc(x[0])}</b><span>${esc(x[2])}</span> ${srcLinks([x[3]])}</li>`).join('')}</ul></div>`).join('');
+const akey = n => n.replace(/^the\s+/i, '');
+const acmp = (a, b) => akey(a).localeCompare(akey(b), 'en', {sensitivity:'base'});
+const alphaName = n => n.includes(';') ? n.split(/;\s*/).sort(acmp).join('; ') : n.split(/,\s*/).sort(acmp).join(', ');
+const whoRows = (D.stakeholders||[]).map(x => [alphaName(x[0]), x[1], x[2], x[3]]).sort((a, b) => acmp(a[0], b[0]));
+document.getElementById('whoList').innerHTML = Object.keys(posName).map(k => `<div><h3 style="border-top:4px solid ${posCol[k]};padding-top:8px">${posName[k]}</h3><ul class="stk">${whoRows.filter(x=>x[1]===k).map(x=>`<li><b>${esc(x[0])}</b><span>${esc(x[2])}</span> ${srcLinks([x[3]])}</li>`).join('')}</ul></div>`).join('');
 document.getElementById('scale').innerHTML = order.map(k => `<div><span class="verdict" style="background:${vcol(k)}">${esc(V[k][0])}</span><span>${esc(V[k][1])}</span></div>`).join('');
 
 document.getElementById('srcTable').innerHTML = `<thead><tr><th>Source</th><th>Item</th><th>Type</th></tr></thead><tbody>` +
