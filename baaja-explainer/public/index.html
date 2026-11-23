@@ -53,6 +53,9 @@ html{scroll-padding-top:72px}
 .controls input{flex:1 1 260px}
 .count{font-size:14px;color:var(--mute);margin-bottom:10px}
 .claims{display:grid;gap:14px}
+.claim .head{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:16px;align-items:start}
+.claim .more>summary{cursor:pointer;padding:0 16px 14px 182px;color:var(--acc);font-weight:600;font-size:14px;min-height:32px}
+.bl a,.who a,.body li a,.qa .ans a,.stk span a,.abub a{color:var(--acc);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
 .claim{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
 .claim>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:16px;align-items:start;min-height:44px}
 .claim>summary::-webkit-details-marker{display:none}
@@ -122,7 +125,7 @@ td.base{background:var(--accbg)}
 @media(max-width:700px){.print .pg{grid-template-columns:minmax(0,1fr)}.print .gut{display:none}}
 pre{background:var(--panel);padding:14px;border-radius:6px;font-size:13px;overflow-x:auto}
 footer{font-size:13px;color:var(--mute)}
-@media(max-width:700px){.claim>summary{grid-template-columns:minmax(0,1fr)}.board{grid-template-columns:minmax(0,1fr)}.track{grid-template-columns:minmax(0,1fr);border-top:0;border-left:3px solid var(--ink);padding-left:16px}
+@media(max-width:700px){.claim .head{grid-template-columns:minmax(0,1fr)}.claim .more>summary{padding:0 16px 14px}.claim>summary{grid-template-columns:minmax(0,1fr)}.board{grid-template-columns:minmax(0,1fr)}.track{grid-template-columns:minmax(0,1fr);border-top:0;border-left:3px solid var(--ink);padding-left:16px}
 .stop{padding:0 0 16px}.stop::before{left:-26px;top:2px}.stop.base::before{left:-28px;top:0}
 .claim>summary{grid-template-columns:minmax(0,1fr)}.verdict{justify-self:start}.body{padding:0 16px 18px}.scale div{grid-template-columns:minmax(0,1fr);gap:2px}}
 @media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;color:var(--mute)}.stack td:empty{display:none}}
@@ -611,7 +614,7 @@ footer{font-size:13px;color:var(--mute)}
    "who": "Tribal historic preservation advocates (as reported by National Indigenous Times)",
    "claim": "The bill removes federal agencies' obligation to consult with tribes on projects.",
    "verdict": "misleading",
-   "bottom": "The statutory duty to consult tribes stays. The bill never amends it: 54 U.S.C. 302706(b) (NHPA §101(d)(6)(B)) appears only once in all 494 pages, in a savings clause saying the new tribal-program subsection does not relieve agencies of that duty (see the text below). But the bill substantially narrows when Section 106 review applies and what counts as an adverse effect. It also sets a 45-day objection window and lets agencies find that other considerations outweigh preservation. Fewer projects would require consultation, and agencies could determine that other considerations outweigh preservation.",
+   "bottom": "The statutory duty to consult tribes stays. The bill never amends it: 54 U.S.C. 302706(b) (NHPA §101(d)(6)(B)) appears only once in all 494 pages, in a savings clause saying the new tribal-program subsection does not relieve agencies of that duty (see the text below). But the bill substantially narrows when Section 106 review applies and what counts as an adverse effect. It also sets a 45-day objection window and lets agencies find that other considerations outweigh preservation. Fewer projects would require consultation.",
    "sections": [
     "2301 (NHPA Section 106)",
     "2302 (Historic Preservation Fund)"
@@ -2305,6 +2308,61 @@ const printBlock = id => { const x = X[id]; if (!x) return '';
   <div class="pg"><div class="gut">p. ${esc(x.page)}</div><div class="tx">${x.text.split('\n').filter(Boolean).map(l=>`<p>${hlite(l,x.hl)}</p>`).join('')}</div></div>
   ${(x.pages||[]).length?`<details class="scan"><summary>See the official page${x.pages.length>1?'s':''} (p. ${x.pages.join(', ')})</summary><div class="imgs">${x.pages.map(n=>`<figure><img loading="lazy" src="page-images/p${String(n).padStart(3,'0')}.jpg" alt="Official text, printed page ${n}" width="935" height="1210"><figcaption>Printed page ${n}. Line numbers in the left margin.</figcaption></figure>`).join('')}</div></details>`:''}
   <footer>${x.note?esc(x.note)+' ':''}${x.partial?'Excerpt. "…" marks omitted text. ':''}Highlighting added. <a href="${esc(href)}" target="_blank" rel="noopener">Open the official PDF near p. ${esc(String(x.pdf))}</a></footer></figure>`; };
+const LINKS = [
+ [/\bRhodium(?: Group)?\b/, 'rhg', 'Rhodium'],
+ [/\bResources for the Future\b|\bRFF\b/, 'rff', 'Resources for the Future'],
+ [/\bClean Air Task Force\b|\bCATF\b/, 'catf1', 'Clean Air Task Force'],
+ [/\bCongressional Research Service\b|\bCRS\b/, 'crs1401', 'Congressional Research'],
+ [/\bCongressional Budget Office\b|\bCBO\b/, 'cbo', 'Congressional Budget'],
+ [/\bJCT\b/, 'cbo', 'Congressional Budget'],
+ [/\bBipartisan Policy Center\b|\bBPC\b(?! Action)/, 'bpc', 'Bipartisan Policy'],
+ [/\bClimate Leadership Council\b/, 'clc', 'Climate Leadership'],
+ [/\bC2ES(?:\/Greenline| and Greenline)?\b/, 'c2es', 'C2ES and Greenline'],
+ [/\bEarthjustice\b/, 'ej_sankar', 'Earthjustice'],
+ [/\bOil Change(?: International)?\b/, 'oci_prices', 'Oil Change'],
+ [/\bSEIA\b/, 'seia', 'SEIA'],
+ [/\bAmerican Clean Power(?: Association)?\b|\bACP\b/, 'acp', 'Renewable Energy World'],
+ [/\bICF\b/, 'api', 'American Petroleum'],
+ [/\bAmerican Petroleum Institute\b|\bAPI(?:'s)?\b/, 'api', 'American Petroleum'],
+ [/\bInstitute for Progress\b|\bIFP(?:'s)?\b/, 'ifp_how', 'Institute for Progress'],
+ [/\bBreakthrough Institute\b/, 'btI', 'Breakthrough'],
+ [/\bHolland &amp; Knight\b/, 'hk_achp', 'Holland'],
+ [/\bPublic Citizen\b/, 'pubcit', 'Public Citizen'],
+ [/\bSierra Club\b/, 'sierra', 'Sierra Club'],
+ [/\bNRDC\b/, 'nrdc_a', 'NRDC'],
+ [/\bFrontier Group\b/, 'frontier', 'Frontier'],
+ [/\bThird Way\b/, 'thirdway', 'Third Way'],
+ [/\bFoley Hoag\b/, 'foley', 'Foley'],
+ [/\bCitizens' Climate Lobby\b/, 'ccl', "Citizens' Climate"],
+ [/\bNational Forest Advocates\b/, 'nfa', 'National Forest'],
+ [/\bAFPM\b/, 'afpm', 'Hydrocarbon'],
+ [/\bOutdoor Alliance\b/, 'outdoor', 'Outdoor Alliance'],
+ [/\bNative American Rights Fund\b|\bNARF\b/, 'narf', 'Native American Rights'],
+ [/\bColumbia (?:Center on Global Energy Policy|CGEP)\b/, 'columbia', 'Columbia'],
+ [/\bDefenders of Wildlife\b/, 'defenders', 'Defenders'],
+ [/\bNational Taxpayers Union\b/, 'ntu', 'National Taxpayers'],
+ [/\bU\.S\. Chamber of Commerce\b/, 'uschamber', 'U.S. Chamber'],
+ [/\bNPR\b/, 'npr', 'NPR'],
+ [/\bCommon Dreams\b/, 'cd_tag', 'Common Dreams'],
+ [/\bNational Indigenous Times\b/, 'nit', 'National Indigenous'],
+ [/\bHeatmap(?: News)?\b/, 'heat', 'Heatmap'],
+ [/\bNewsweek\b/, 'newsweek', 'Newsweek'],
+ [/\bSen\. Chris Coons\b|\bCoons\b/, 'coons', 'Sen. Chris Coons'],
+ [/\bMultifamily Dive\b/, 'mfd', 'Multifamily'],
+ [/\bWestern Environmental Law Center\b/, 'cd_warn', 'Common Dreams']
+];
+// Escape text, then turn the first mention of each cited organization into a link.
+// Prefer a source from the item's own list (ids) whose organization matches; else the default.
+const linkify = (txt, ids) => {
+  let h = esc(txt); const toks = []; const used = new Set();
+  for (const [re, def, org] of LINKS) {
+    const own = (ids||[]).find(id => S[id] && S[id][0].toLowerCase().startsWith(org.toLowerCase()));
+    const id = own || def; if (!S[id] || used.has(id + re.source)) continue;
+    const g = new RegExp(re.source, 'g'); let done = false;
+    h = h.replace(g, mm => { if (done) return mm; done = true; used.add(id + re.source); toks.push(`<a href="${esc(S[id][2])}" target="_blank" rel="noopener" title="${esc(S[id][0] + ': ' + S[id][1])}">${mm}</a>`); return `\u0000${toks.length-1}\u0000`; });
+  }
+  return h.replace(/\u0000(\d+)\u0000/g, (_, n) => toks[+n]);
+};
 const srcLinks = ids => ids.map(id => S[id] ? `<a href="${esc(S[id][2])}" target="_blank" rel="noopener">${esc(S[id][0])}</a>` : '').join('');
 
 function renderClaims(){
@@ -2315,17 +2373,18 @@ function renderClaims(){
   const list = []; for (let i = 0; i < Math.max(A.length, Bq.length); i++) { if (A[i]) list.push(A[i]); if (Bq[i]) list.push(Bq[i]); }
   document.getElementById('count').textContent = `Showing ${list.length} of ${D.claims.length} claims`;
   document.getElementById('claimList').innerHTML = list.length ? list.map(c => `
-  <details class="claim" id="c-${c.id}">
-    <summary><span class="verdict" style="background:${vcol(c.verdict)}">${esc(V[c.verdict][0])}</span>
-      <span><span class="who">${c.side==='support'?'Supporter':'Opponent'} · ${esc(c.who)}</span><span class="ctext">${esc(c.claim)}</span><p class="bl">${esc(c.bottom)}</p></span></summary>
+  <article class="claim" id="c-${c.id}">
+    <div class="head"><span class="verdict" style="background:${vcol(c.verdict)}">${esc(V[c.verdict][0])}</span>
+      <span><span class="who">${c.side==='support'?'Supporter':'Opponent'} · ${linkify(c.who, c.sources)}</span><span class="ctext">${esc(c.claim)}</span><p class="bl">${linkify(c.bottom, c.sources)}</p></span></div>
+    <details class="more"><summary>Bill text, evidence and sources</summary>
     <div class="body">
       <h4>Bill sections this depends on</h4><div class="secs">${c.sections.map(s=>`<span>${s==='—'?'No specific section':'Sec. '+esc(s)}</span>`).join('')}</div>
       ${(c.text||[]).length?`<h4>What the bill text says</h4>${c.text.map(printBlock).join('')}`:''}
-      <h4>Evidence and context</h4><ul>${c.evidence.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>
+      <h4>Evidence and context</h4><ul>${c.evidence.map(e=>`<li>${linkify(e, c.sources)}</li>`).join('')}</ul>
       <h4>Sources</h4><div class="src">${srcLinks(c.sources)}</div>
       <h4>Version check</h4><div>Checked against: ${esc(B.baseVersion)} (S.Amdt. 6883). House text: none yet.</div>
-    </div>
-  </details>`).join('') : `<p>No claims match. Clear the search or filters.</p>`;
+    </div></details>
+  </article>`).join('') : `<p>No claims match. Clear the search or filters.</p>`;
 }
 ['q','fSide','fVerdict'].forEach(id => document.getElementById(id).addEventListener('input', renderClaims));
 document.getElementById('board').addEventListener('click', e => {
@@ -2335,7 +2394,7 @@ document.getElementById('board').addEventListener('click', e => {
 });
 renderClaims();
 
-document.getElementById('qaList').innerHTML = D.qa.map((x,i) => `<details${i===0?' open':''}><summary>${esc(x.q)}</summary><div class="ans">${x.a.map(p=>`<p>${esc(p)}</p>`).join('')}${(x.t||[]).map(printBlock).join('')}<div class="src" style="font-size:14px">Sources: ${srcLinks(x.s)}</div></div></details>`).join('');
+document.getElementById('qaList').innerHTML = D.qa.map((x,i) => `<details${i===0?' open':''}><summary>${esc(x.q)}</summary><div class="ans">${x.a.map(p=>`<p>${linkify(p, x.s)}</p>`).join('')}${(x.t||[]).map(printBlock).join('')}<div class="src" style="font-size:14px">Sources: ${srcLinks(x.s)}</div></div></details>`).join('');
 
 document.getElementById('textLede').textContent = `Each passage below is quoted word for word from the substitute the Senate adopted, with printed page and line numbers so you can check it against the official PDF. ${TS.note||''}`;
 document.getElementById('libList').innerHTML = Object.keys(X).map(printBlock).join('');
@@ -2352,7 +2411,7 @@ const akey = n => n.replace(/^the\s+/i, '');
 const acmp = (a, b) => akey(a).localeCompare(akey(b), 'en', {sensitivity:'base'});
 const alphaName = n => n.includes(';') ? n.split(/;\s*/).sort(acmp).join('; ') : n.split(/,\s*/).sort(acmp).join(', ');
 const whoRows = (D.stakeholders||[]).map(x => [alphaName(x[0]), x[1], x[2], x[3]]).sort((a, b) => acmp(a[0], b[0]));
-document.getElementById('whoList').innerHTML = [...sideOrder,'mixed','analyst'].map(k => `<div><h3 style="border-top:4px solid ${posCol[k]};padding-top:8px">${posName[k]}</h3><ul class="stk">${whoRows.filter(x=>x[1]===k).map(x=>`<li><b>${esc(x[0])}</b><span>${esc(x[2])}</span> ${srcLinks([x[3]])}</li>`).join('')}</ul></div>`).join('');
+document.getElementById('whoList').innerHTML = [...sideOrder,'mixed','analyst'].map(k => `<div><h3 style="border-top:4px solid ${posCol[k]};padding-top:8px">${posName[k]}</h3><ul class="stk">${whoRows.filter(x=>x[1]===k).map(x=>`<li><b>${esc(x[0])}</b><span>${linkify(x[2], [x[3]])}</span> ${srcLinks([x[3]])}</li>`).join('')}</ul></div>`).join('');
 document.getElementById('scale').innerHTML = order.map(k => `<div><span class="verdict" style="background:${vcol(k)}">${esc(V[k][0])}</span><span>${esc(V[k][1])}</span></div>`).join('');
 
 document.getElementById('srcTable').innerHTML = `<thead><tr><th>Source</th><th>Item</th><th>Type</th></tr></thead><tbody>` +
@@ -2502,7 +2561,7 @@ PAGE DATA:
 `;
 let turns = [], ctl = null, askOff = false;
 function mdLite(t){
-  let h = esc(t);
+  let h = t.split('\n').map(l => linkify(l, [])).join('\n');
   h = h.replace(/&quot;([^&\n]{3,600}?)&quot;/g, '<q>$1</q>').replace(/“([^”\n]{3,600}?)”/g, '<q>$1</q>');
   h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
   const out = []; let list = false;
