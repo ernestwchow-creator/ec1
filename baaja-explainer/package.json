@@ -1,0 +1,9 @@
+{
+  "name": "baaja-claim-check",
+  "version": "1.0.0",
+  "description": "Public BAAJA claim-check explainer with an Ask-a-question box (Render web service, no dependencies)",
+  "private": true,
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}
