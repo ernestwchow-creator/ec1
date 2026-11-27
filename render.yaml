@@ -1,0 +1,20 @@
+# Render Blueprint for the BAAJA Claim Check site (lives in ./baaja-explainer).
+services:
+  - type: web
+    name: baaja-claim-check
+    runtime: node
+    plan: free
+    branch: baaja-explainer
+    rootDir: baaja-explainer
+    buildCommand: echo "No build step"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # enter your key in the Render dashboard; never commit it
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+      - key: DAILY_CAP
+        value: "300"
+      - key: PER_IP_PER_HOUR
+        value: "10"
